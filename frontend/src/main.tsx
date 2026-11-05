@@ -1,5 +1,6 @@
 import "@fontsource/cinzel/600.css";
 import "@fontsource/mountains-of-christmas/700.css";
+import "@fontsource/playfair-display/latin-700.css";
 import "@fontsource/cinzel/800.css";
 import "@fontsource/nunito/400.css";
 import "@fontsource/nunito/700.css";

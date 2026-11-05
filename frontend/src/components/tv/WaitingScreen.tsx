@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 
-import bandeau from "../../assets/attente/bandeau.webp";
 import bandeauMasque from "../../assets/attente/bandeau-masque.webp";
 import fond from "../../assets/attente/fond.webp";
 import plaque from "../../assets/attente/plaque.webp";
@@ -12,13 +11,15 @@ import { formatCountdown, remainingSeconds } from "./playback";
 const FINAL_SECONDS = 10;
 
 /*
- * Les calques sont découpés dans les maquettes 1672×941 : leurs positions sont exprimées en % du cadre 16:9
- * de la TV, pour se superposer exactement au fond quelle que soit la résolution.
+ * Le fond est la maquette « Allocution du Père Noël à venir » (1672×941) telle quelle : les effets sont posés
+ * par-dessus, en % du cadre 16:9 de la TV, pour tomber au bon endroit quelle que soit la résolution.
  */
+/** Emplacement du bandeau titre dessiné dans le fond (masque du reflet doré). */
 const BANDEAU_BOX: CSSProperties = { left: "13.158%", top: "8.502%", width: "73.684%", height: "38.257%" };
-const PLAQUE_BOX: CSSProperties = { left: "25.419%", top: "45.165%", width: "49.043%", height: "39.851%" };
-/** Zone des chiffres à l'intérieur de la plaque verte. */
-const DIGITS_BOX: CSSProperties = { left: "17.44%", top: "12%", width: "65.12%", height: "46.93%" };
+/** Plaque du compte à rebours (image 1390×697) centrée sous le bandeau. */
+const PLAQUE_BOX: CSSProperties = { left: "26.5%", top: "45.5%", width: "47%", height: "41.9%" };
+/** Zone des chiffres à l'intérieur de la plaque verte (chiffres d'origine effacés de l'image). */
+const DIGITS_BOX: CSSProperties = { left: "17.41%", top: "11.91%", width: "65.9%", height: "43.9%" };
 
 /** Points scintillants, en % du bandeau : étoile du sommet et flocons de part et d'autre du titre. */
 const SPARKLES = [
@@ -143,9 +144,12 @@ function Digits({ text, final }: { text: string; final: boolean }) {
   return (
     <p
       data-testid="tv-countdown"
-      className="flex h-full items-center justify-center font-display font-extrabold leading-none tabular-nums"
+      className="flex h-full items-center justify-center font-bold leading-none"
       style={{
-        fontSize: "19cqh",
+        fontFamily: '"Playfair Display", Georgia, serif',
+        // Chiffres alignés (Playfair utilise par défaut des chiffres elzéviriens) et à chasse fixe.
+        fontVariantNumeric: "lining-nums tabular-nums",
+        fontSize: "19.5cqh",
         animation: final ? "count-pulse 1s ease-in-out infinite" : undefined,
         filter: "drop-shadow(0 0.04em 0 rgb(40 20 5 / 0.9)) drop-shadow(0 0 0.12em rgb(255 215 120 / 0.55))",
       }}
@@ -176,7 +180,7 @@ export function WaitingScreen({ countdownUntil, clockOffset }: { countdownUntil:
       <div aria-hidden className="absolute inset-0" style={{ animation: "scene-in 2.6s cubic-bezier(0.2,0.7,0.2,1) both" }}>
         <div
           className="absolute inset-0 bg-cover bg-center"
-          style={{ backgroundImage: `url(${fond})`, animation: "scene-breathe 30s ease-in-out 2.6s infinite alternate" }}
+          style={{ backgroundImage: `url(${fond})` }}
         />
         {LIGHTS.map((l, i) => (
           <span
@@ -197,27 +201,25 @@ export function WaitingScreen({ countdownUntil, clockOffset }: { countdownUntil:
 
       <GoldDust />
 
-      {/* Bandeau titre */}
-      <div
-        className="absolute"
-        style={{ ...BANDEAU_BOX, animation: "banner-in 1.6s cubic-bezier(0.2,1.25,0.4,1) 0.5s both" }}
-        aria-label="Allocution du Père Noël à venir"
-        role="img"
-      >
-        <div className="relative h-full w-full" style={{ animation: "float-soft 7s ease-in-out 2.5s infinite" }}>
-          <img
-            src={bandeau}
-            alt=""
-            className="absolute inset-0 h-full w-full"
-            style={{ animation: "banner-glow 4s ease-in-out 2.5s infinite" }}
-          />
-          <Shimmer mask={bandeauMasque} delay={2.6} period={7} />
-          {SPARKLES.map((s, i) => (
-            <Sparkle key={i} {...s} />
-          ))}
-        </div>
+      {/* Effets sur le bandeau titre du fond : halo qui respire, reflet doré, étoiles */}
+      <div aria-hidden className="absolute" style={{ ...BANDEAU_BOX, animation: "fade-in 1.2s ease-out 1.6s both" }}>
+        <div
+          className="absolute inset-0 mix-blend-screen"
+          style={{
+            WebkitMaskImage: `url(${bandeauMasque})`,
+            maskImage: `url(${bandeauMasque})`,
+            WebkitMaskSize: "100% 100%",
+            maskSize: "100% 100%",
+            background: "radial-gradient(ellipse at 50% 70%, rgb(255 200 110 / 0.35), transparent 70%)",
+            animation: "glow-breathe 4s ease-in-out infinite",
+          }}
+        />
+        <Shimmer mask={bandeauMasque} delay={1.4} period={7} />
+        {SPARKLES.map((s, i) => (
+          <Sparkle key={i} {...s} />
+        ))}
       </div>
-      {/* Texte accessible / testable (le titre est dessiné dans l'image). */}
+      {/* Texte accessible / testable (le titre est dessiné dans le fond). */}
       <span className="sr-only">Allocution du Père Noël à venir</span>
 
       {/* Plaque du compte à rebours */}
@@ -257,7 +259,7 @@ export function WaitingScreen({ countdownUntil, clockOffset }: { countdownUntil:
                 aria-hidden
                 key={remaining}
                 className="absolute rounded-full border-[0.4cqh] border-or-300"
-                style={{ left: "50%", top: "84%", width: "8cqh", height: "8cqh", animation: "bell-wave 1s ease-out both" }}
+                style={{ left: "50%", top: "86%", width: "8cqh", height: "8cqh", animation: "bell-wave 1s ease-out both" }}
               />
             )}
           </div>
