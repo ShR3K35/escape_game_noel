@@ -24,6 +24,61 @@ const PHASE_BUTTON_LABELS: Partial<Record<Phase, string>> = {
   FIN: "Terminer la partie",
 };
 
+const COUNTDOWN_PRESETS = [1, 2, 3, 5, 10, 15];
+
+/** Compte à rebours affiché sur la TV avant l'intro ; à zéro, la partie démarre toute seule. */
+function IntroCountdown({ state, now }: { state: AdminState; now: number }) {
+  const [minutes, setMinutes] = useState("20");
+  const until = state.tv.countdown?.until;
+  const custom = Math.round(Number(minutes.replace(",", ".")) * 60);
+  const customValid = Number.isFinite(custom) && custom >= 5 && custom <= 4 * 3600;
+
+  return (
+    <div className="rounded-lg border border-or-500/40 bg-black/25 p-3" data-testid="intro-countdown">
+      <p className="text-sm font-bold text-or-300">⏳ Compte à rebours avant l'intro</p>
+      <p className="mb-2 text-xs text-parchemin-200/70">
+        La TV affiche « Allocution du Père Noël à venir ». À zéro, la vidéo d'introduction se lance automatiquement.
+      </p>
+      {until && (
+        <div className="mb-2 flex items-center gap-3">
+          <span className="font-mono text-3xl font-bold text-or-300" data-testid="countdown-remaining">
+            {formatDuration(Math.max(0, Date.parse(until) - now) + 999)}
+          </span>
+          <ActionButton variant="danger" className="ml-auto" onAction={api.cancelCountdown} success="Compte à rebours annulé">
+            ✕ Annuler
+          </ActionButton>
+        </div>
+      )}
+      <div className="grid grid-cols-3 gap-2">
+        {COUNTDOWN_PRESETS.map((m) => (
+          <ActionButton key={m} variant="green" onAction={() => api.countdown(m * 60)} title={`Compte à rebours de ${m} min`}>
+            {m} min
+          </ActionButton>
+        ))}
+      </div>
+      <div className="mt-2 flex gap-2">
+        <label className="flex flex-1 items-center gap-2 text-sm">
+          <input
+            type="number"
+            inputMode="decimal"
+            min={0.1}
+            max={240}
+            step="any"
+            value={minutes}
+            onChange={(e) => setMinutes(e.target.value)}
+            aria-label="Durée personnalisée en minutes"
+            className="w-20 rounded-lg border border-white/15 bg-black/40 px-2 py-2 text-center text-parchemin-100"
+          />
+          min
+        </label>
+        <ActionButton variant="gold" disabled={!customValid} onAction={() => api.countdown(custom)}>
+          {until ? "↻ Relancer" : "▶ Lancer"}
+        </ActionButton>
+      </div>
+    </div>
+  );
+}
+
 export function GamePanel({ state, clockOffset }: { state: AdminState; clockOffset: number }) {
   const now = useNow(clockOffset);
   const elapsed = state.started_at ? now - Date.parse(state.started_at) : 0;
@@ -63,6 +118,7 @@ export function GamePanel({ state, clockOffset }: { state: AdminState; clockOffs
         </dl>
 
         <div className="mt-4 grid gap-2">
+          {state.phase === "PREPARATION" && <IntroCountdown state={state} now={now} />}
           {state.phase === "PREPARATION" && (
             <ActionButton
               variant="gold"

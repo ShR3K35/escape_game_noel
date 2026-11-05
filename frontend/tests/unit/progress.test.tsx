@@ -15,7 +15,7 @@ function state(teams: Record<string, PublicState["teams"][number]["status"]>, ki
     phase: "ENQUETE",
     phase_changed_at: null,
     started_at: null,
-    tv: { play: null, message: null, ambient: "neige", loop: {} as never, preload: [], show_progress: true },
+    tv: { play: null, message: null, ambient: "neige", loop: {} as never, preload: [], show_progress: true, countdown: null },
     teams: Object.entries(teams).map(([id, status]) => ({ id, name: `Équipe ${id}`, theme: `Thème ${id}`, color: "#900", status })),
     kids_summary: { completed: kids.filter((k) => k === "completed").length, total: 4 },
     kids_games: ids.map((id, i) => ({ id, title: `Jeu ${id}`, status: kids[i] })),

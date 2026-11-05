@@ -33,6 +33,8 @@ export interface TvState {
   loop: VideoInfo;
   preload: string[];
   show_progress: boolean;
+  /** Compte à rebours avant l'intro (phase PREPARATION uniquement). */
+  countdown: { until: string } | null;
 }
 
 export interface TeamSummary {

@@ -44,6 +44,8 @@ export const api = {
 
   // Partie
   start: () => post("/api/admin/game/start"),
+  countdown: (seconds: number) => post("/api/admin/game/countdown", { seconds }),
+  cancelCountdown: () => post("/api/admin/game/countdown/cancel"),
   setPhase: (phase: Phase, confirm = false) => post("/api/admin/game/phase", { phase, confirm }),
   reset: () => post("/api/admin/game/reset", { confirm: true }),
   backup: () => post<{ file: string }>("/api/admin/backup"),

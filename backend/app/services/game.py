@@ -38,6 +38,11 @@ TEAM_LABELS = {"NON_COMMENCE": "non commencée", "EN_COURS": "en cours", "VALIDE
 
 AMBIENTS = ("aucun", "neige", "etoiles", "magie")
 PLAY_DEBOUNCE = timedelta(seconds=3)
+COUNTDOWN_MIN_SECONDS = 5
+COUNTDOWN_MAX_SECONDS = 4 * 3600
+# Compte à rebours échu pendant une coupure du serveur : au-delà de ce retard, l'intro n'est pas lancée
+# toute seule (le maître du jeu décide).
+COUNTDOWN_GRACE = timedelta(seconds=120)
 
 
 def _team_path(current: str, target: str) -> list[str]:
@@ -93,6 +98,7 @@ class GameService:
         now = self.clock()
         st.phase = target
         st.phase_changed_at = now
+        st.intro_countdown_until = None
         if target == "INTRO":
             st.started_at = now
         if target == "FIN":
@@ -110,6 +116,7 @@ class GameService:
         st = self.state(s)
         st.phase = "PREPARATION"
         st.started_at = st.ended_at = None
+        st.intro_countdown_until = None
         st.phase_changed_at = self.clock()
         self._clear_play(st)
         self._clear_message(st)
@@ -119,6 +126,52 @@ class GameService:
             row.status = "NON_COMMENCE"
             row.updated_at = self.clock()
         log_event(s, self.clock, "game_reset", "Partie réinitialisée", None, source)
+
+    # ------------------------------------------------- compte à rebours de l'intro
+    def start_countdown(self, s: Session, seconds: int, source: str = "admin") -> dict:
+        """Lance (ou relance) le compte à rebours affiché sur la TV ; à zéro, la partie démarre (INTRO)."""
+        if not COUNTDOWN_MIN_SECONDS <= seconds <= COUNTDOWN_MAX_SECONDS:
+            raise GameError(f"durée invalide ({COUNTDOWN_MIN_SECONDS} s à {COUNTDOWN_MAX_SECONDS // 3600} h)", 422)
+        st = self.state(s)
+        if st.phase != "PREPARATION":
+            raise GameError("le compte à rebours n'est possible qu'avant le démarrage de la partie")
+        st.intro_countdown_until = self.clock() + timedelta(seconds=seconds)
+        self._touch(st)
+        minutes, secs = divmod(seconds, 60)
+        label = f"{minutes} min {secs:02d} s" if secs else f"{minutes} min"
+        log_event(s, self.clock, "countdown_started", f"Compte à rebours avant l'intro : {label}",
+                  {"seconds": seconds, "until": iso(st.intro_countdown_until)}, source)
+        return {"changed": True, "until": iso(st.intro_countdown_until)}
+
+    def cancel_countdown(self, s: Session, source: str = "admin") -> dict:
+        st = self.state(s)
+        if not st.intro_countdown_until:
+            return {"changed": False}
+        st.intro_countdown_until = None
+        self._touch(st)
+        log_event(s, self.clock, "countdown_cancelled", "Compte à rebours annulé", None, source)
+        return {"changed": True}
+
+    def tick_countdown(self, s: Session) -> bool:
+        """Appelé par le planificateur : démarre la partie quand le compte à rebours arrive à zéro."""
+        st = self.state(s)
+        until = st.intro_countdown_until
+        if not until or until > self.clock():
+            return False
+        if st.phase != "PREPARATION":
+            st.intro_countdown_until = None
+            return True
+        if self.clock() - until > COUNTDOWN_GRACE:
+            st.intro_countdown_until = None
+            self._touch(st)
+            log_event(s, self.clock, "countdown_missed",
+                      "Compte à rebours échu pendant une coupure : intro non lancée", {"until": iso(until)},
+                      "scheduler")
+            return True
+        log_event(s, self.clock, "countdown_ended", "Fin du compte à rebours : lancement de l'intro", None,
+                  "scheduler")
+        self.set_phase(s, "INTRO", source="scheduler")
+        return True
 
     # ---------------------------------------------------------------- équipes
     def set_team_status(self, s: Session, team_id: str, target: str, source: str = "admin") -> dict:
@@ -277,8 +330,11 @@ class GameService:
             message = {"id": st.tv_message_id, "title": st.tv_message_title, "text": st.tv_message_text,
                        "until": iso(st.tv_message_until)}
         preload = [f"/media/videos/{v.file}" for v in self.cfg.videos if self.video_available(v.file)]
+        countdown = None
+        if st.phase == "PREPARATION" and st.intro_countdown_until:
+            countdown = {"until": iso(st.intro_countdown_until)}
         return {"play": play, "message": message, "ambient": st.tv_ambient,
-                "show_progress": bool(st.tv_show_progress),
+                "show_progress": bool(st.tv_show_progress), "countdown": countdown,
                 "loop": self.video_payload(self.cfg.loop_video.id), "preload": preload}
 
     def teams_view(self, s: Session) -> list[dict]:

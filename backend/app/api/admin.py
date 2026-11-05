@@ -20,6 +20,10 @@ class PhaseBody(BaseModel):
     confirm: bool = False
 
 
+class CountdownBody(BaseModel):
+    seconds: int = Field(ge=5, le=4 * 3600)
+
+
 class TeamBody(BaseModel):
     status: Literal["NON_COMMENCE", "EN_COURS", "VALIDEE"]
 
@@ -67,6 +71,16 @@ async def events(limit: int = Query(100, ge=1, le=500), svc=Depends(services)):
 @router.post("/game/start")
 async def start(request: Request, svc=Depends(services)):
     return await command(request, lambda s: svc.game.set_phase(s, "INTRO"))
+
+
+@router.post("/game/countdown")
+async def countdown(body: CountdownBody, request: Request, svc=Depends(services)):
+    return await command(request, lambda s: svc.game.start_countdown(s, body.seconds))
+
+
+@router.post("/game/countdown/cancel")
+async def countdown_cancel(request: Request, svc=Depends(services)):
+    return await command(request, svc.game.cancel_countdown)
 
 
 @router.post("/game/phase")

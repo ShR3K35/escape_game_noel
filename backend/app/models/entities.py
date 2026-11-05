@@ -27,6 +27,8 @@ class GameState(Base):
     tv_message_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     tv_ambient: Mapped[str] = mapped_column(String(20), default="neige")
     tv_show_progress: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
+    # Fin du compte à rebours affiché sur la TV avant l'intro (PREPARATION) ; à échéance -> INTRO.
+    intro_countdown_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 

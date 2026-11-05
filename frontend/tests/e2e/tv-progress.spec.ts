@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { loginAdmin, resetGame } from "./helpers";
+import { clickAndConfirm, loginAdmin, resetGame } from "./helpers";
 
 test.beforeEach(async ({ request }) => resetGame(request));
 
@@ -12,10 +12,17 @@ test("avancement sur la TV et animation à chaque succès", async ({ browser }) 
 
   await tv.goto("/tv?preload=0");
   const panel = tv.getByTestId("tv-progress");
+  // Avant le démarrage : écran d'attente, pas d'avancement.
+  await expect(tv.getByTestId("tv-waiting")).toBeVisible();
+  await expect(panel).toHaveCount(0);
+
+  // Partie démarrée puis intro arrêtée : retour sur le bureau avec l'avancement.
+  await loginAdmin(admin);
+  await clickAndConfirm(admin, /Démarrer la partie/, "Démarrer");
+  await admin.getByRole("tab", { name: /TV/ }).click();
+  await admin.getByRole("button", { name: "■ Stop" }).first().click();
   await expect(panel).toBeVisible();
   await expect(tv.getByTestId("tv-success")).toHaveCount(0); // pas de rejeu au chargement
-
-  await loginAdmin(admin);
 
   // Équipe validée -> animation + panneau à jour
   await admin.getByRole("tab", { name: /Équipes/ }).click();

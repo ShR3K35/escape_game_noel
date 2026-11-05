@@ -59,7 +59,8 @@ async def _scheduler_loop(app: FastAPI) -> None:
             async with svc.lock:
                 fired = svc.run(svc.schedule.tick)
                 expired = svc.run(svc.game.expire_message)
-            if fired or expired:
+                countdown = svc.run(svc.game.tick_countdown)
+            if fired or expired or countdown:
                 await app.state.hub.broadcast()
         except Exception:  # la boucle ne doit jamais s'arrêter
             log.exception("erreur dans le planificateur")

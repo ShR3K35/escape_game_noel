@@ -49,6 +49,9 @@ PREPARATION → INTRO → ENQUETE → FINALE → VICTOIRE ─→ FIN
                          └──→ VICTOIRE / SECOURS (fin anticipée)      SECOURS → VICTOIRE autorisé
 ```
 
+- PREPARATION : la TV affiche l'écran d'attente « Allocution du Père Noël à venir ». Le MJ peut lancer un compte
+  à rebours (`intro_countdown_until`, 5 s à 4 h, relançable / annulable) ; à échéance, le planificateur passe en
+  INTRO. Échu pendant une coupure de plus de 2 minutes : annulé (journalisé) sans lancer l'intro.
 - Entrée en INTRO / FINALE / VICTOIRE / SECOURS : la vidéo associée (`phase_videos`) est lancée.
 - Fin de la vidéo d'intro → ENQUETE ; fin de victoire/secours → FIN (`auto_advance`).
 - VICTOIRE et SECOURS exigent `confirm=true` (confirmation dans l'interface).
@@ -99,9 +102,9 @@ Chaque message WebSocket contient l'état complet du canal : un écran qui se re
 
 | Suite | Commande | Couverture |
 |---|---|---|
-| pytest (87) | `pytest` dans `backend/` | moteur, équipes, persistance/redémarrage, vidéos, WebSocket, mini-jeux, planning, démo, authentification, config, SPA |
-| Vitest (29) | `npm test` dans `frontend/` | décisions de lecture TV, détection des succès, panneau d'avancement, mini-jeux, utilitaires |
-| Playwright (7) | `npx playwright test` | parcours admin ↔ TV en temps réel, avancement + animations de succès sur la TV, victoire, réinitialisation, 4 mini-jeux complets, déblocage à distance |
+| pytest (95) | `pytest` dans `backend/` | moteur, équipes, persistance/redémarrage, vidéos, WebSocket, mini-jeux, planning, démo, authentification, config, SPA |
+| Vitest (31) | `npm test` dans `frontend/` | décisions de lecture TV, détection des succès, panneau d'avancement, mini-jeux, utilitaires |
+| Playwright (8) | `npx playwright test` | parcours admin ↔ TV en temps réel, avancement + animations de succès sur la TV, victoire, réinitialisation, 4 mini-jeux complets, déblocage à distance |
 
 ## Évolutions futures (non développées)
 

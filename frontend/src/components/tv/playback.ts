@@ -37,3 +37,16 @@ export function screenFor(play: TvPlay): Screen {
 export function messageVisible(until: string | undefined, serverNow: number): boolean {
   return !!until && Date.parse(until) > serverNow;
 }
+
+/** Secondes restantes (arrondi supérieur : « 00:01 » s'affiche jusqu'au dernier instant). */
+export function remainingSeconds(untilIso: string, serverNow: number): number {
+  return Math.max(0, Math.ceil((Date.parse(untilIso) - serverNow) / 1000));
+}
+
+export function formatCountdown(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+}

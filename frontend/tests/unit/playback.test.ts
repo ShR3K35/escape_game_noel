@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { STALE_PLAY_MS, decide, messageVisible, screenFor } from "../../src/components/tv/playback";
+import { STALE_PLAY_MS, decide, formatCountdown, messageVisible, remainingSeconds, screenFor } from "../../src/components/tv/playback";
 import type { TvPlay } from "../../src/services/types";
 
 const NOW = Date.parse("2026-12-24T19:30:00Z");
@@ -46,5 +46,22 @@ describe("décision de lecture TV", () => {
     expect(messageVisible(new Date(NOW + 5000).toISOString(), NOW)).toBe(true);
     expect(messageVisible(new Date(NOW - 1).toISOString(), NOW)).toBe(false);
     expect(messageVisible(undefined, NOW)).toBe(false);
+  });
+});
+
+describe("compte à rebours avant l'intro", () => {
+  const until = new Date(NOW + 90_000).toISOString();
+
+  it("arrondit à la seconde supérieure et ne descend pas sous zéro", () => {
+    expect(remainingSeconds(until, NOW)).toBe(90);
+    expect(remainingSeconds(until, NOW + 89_500)).toBe(1);
+    expect(remainingSeconds(until, NOW + 90_000)).toBe(0);
+    expect(remainingSeconds(until, NOW + 120_000)).toBe(0);
+  });
+
+  it("formate en minutes:secondes, avec les heures si besoin", () => {
+    expect(formatCountdown(90)).toBe("01:30");
+    expect(formatCountdown(5)).toBe("00:05");
+    expect(formatCountdown(3725)).toBe("1:02:05");
   });
 });

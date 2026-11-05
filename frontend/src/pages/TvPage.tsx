@@ -6,6 +6,7 @@ import { CELEBRATION_MS, detectSuccesses, type Success } from "../components/tv/
 import { ProgressOverlay, SuccessCelebration } from "../components/tv/ProgressOverlay";
 import { sfx } from "../games/sounds";
 import { FallbackScreen, LoopLayer, MainVideo, MessageOverlay } from "../components/tv/TvScenes";
+import { WaitingScreen } from "../components/tv/WaitingScreen";
 import { useLiveChannel } from "../hooks/useLiveChannel";
 import { api } from "../services/api";
 import type { PublicState } from "../services/types";
@@ -116,8 +117,11 @@ export default function TvPage() {
     else document.documentElement.requestFullscreen().catch(() => undefined);
   };
 
+  // Avant le démarrage : écran d'attente (et compte à rebours) à la place de la boucle du bureau.
+  const waiting = screen.kind === "loop" && data?.phase === "PREPARATION";
+
   // Une animation à la fois, uniquement sur la boucle du bureau : en attente pendant une vidéo.
-  const celebration = screen.kind === "loop" && !fading ? successes[0] : undefined;
+  const celebration = screen.kind === "loop" && !waiting && !fading ? successes[0] : undefined;
   useEffect(() => {
     if (!celebration) return;
     if (!muted) sfx.fanfare();
@@ -135,12 +139,14 @@ export default function TvPage() {
       onDoubleClick={toggleFullscreen}
       data-testid="tv-root"
       data-screen={screen.kind}
+      data-waiting={waiting ? "true" : undefined}
     >
       <div className="absolute left-1/2 top-1/2 aspect-video max-h-full w-full max-w-[177.78vh] -translate-x-1/2 -translate-y-1/2 overflow-hidden">
-        {data && <LoopLayer loop={data.tv.loop} active={screen.kind === "loop"} muted={muted} onAutoplayBlocked={onAutoplayBlocked} />}
+        {data && <LoopLayer loop={data.tv.loop} active={screen.kind === "loop" && !waiting} muted={muted} onAutoplayBlocked={onAutoplayBlocked} />}
 
-        {screen.kind === "loop" && data && <AmbientLayer ambient={data.tv.ambient} />}
-        {screen.kind === "loop" && data?.tv.show_progress && <ProgressOverlay state={data} highlight={celebration} />}
+        {waiting && data && <WaitingScreen countdownUntil={data.tv.countdown?.until ?? null} clockOffset={clockOffset} />}
+        {screen.kind === "loop" && !waiting && data && <AmbientLayer ambient={data.tv.ambient} />}
+        {screen.kind === "loop" && !waiting && data?.tv.show_progress && <ProgressOverlay state={data} highlight={celebration} />}
         {celebration && <SuccessCelebration key={celebration.key} success={celebration} />}
 
         {screen.kind === "video" && (
