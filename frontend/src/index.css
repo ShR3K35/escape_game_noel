@@ -1,0 +1,123 @@
+@import "tailwindcss";
+
+/* Écran peu haut (tablette 7" en paysage, 1024×600) : mise en page resserrée. */
+@custom-variant short (@media (max-height: 680px));
+
+@theme {
+  --font-display: "Cinzel", Georgia, "Times New Roman", serif;
+  --font-sans: "Nunito", "Segoe UI", system-ui, sans-serif;
+
+  --color-bordeaux-950: #2a0610;
+  --color-bordeaux-900: #3e0a17;
+  --color-bordeaux-800: #5a0f1f;
+  --color-bordeaux-700: #7a1a2c;
+  --color-bordeaux-600: #9b2638;
+  --color-sapin-950: #0b1f12;
+  --color-sapin-900: #12301a;
+  --color-sapin-800: #1a4424;
+  --color-sapin-700: #24592f;
+  --color-sapin-600: #2f6f3c;
+  --color-or-300: #ecd9a0;
+  --color-or-400: #ddbf72;
+  --color-or-500: #c9a24b;
+  --color-or-600: #a88236;
+  --color-or-700: #7f6128;
+  --color-parchemin-50: #fbf6ea;
+  --color-parchemin-100: #f5ecd5;
+  --color-parchemin-200: #ecdcb6;
+  --color-parchemin-300: #dcc591;
+  --color-bois-950: #140b06;
+  --color-bois-900: #24150c;
+  --color-bois-800: #3b2416;
+  --color-bois-700: #553521;
+  --color-encre: #2b1a10;
+
+  --animate-fade-in: fade-in 0.5s ease-out both;
+  --animate-pop: pop 0.45s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+  --animate-shake: shake 0.5s ease-in-out;
+  --animate-glow: glow 2.2s ease-in-out infinite;
+  --animate-float: float 4s ease-in-out infinite;
+  --animate-unroll: unroll 0.9s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+
+@keyframes fade-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes pop { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: scale(1); } }
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-10px); }
+  40%, 80% { transform: translateX(10px); }
+}
+@keyframes glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgb(221 191 114 / 0.0), 0 10px 30px -10px rgb(0 0 0 / 0.5); }
+  50% { box-shadow: 0 0 28px 6px rgb(221 191 114 / 0.55), 0 10px 30px -10px rgb(0 0 0 / 0.5); }
+}
+@keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+@keyframes unroll {
+  from { opacity: 0; transform: scaleY(0.2) translateY(-20px); filter: blur(4px); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+@keyframes snowfall {
+  from { transform: translate3d(0, -10vh, 0); }
+  to { transform: translate3d(var(--drift, 20px), 110vh, 0); }
+}
+@keyframes twinkle { 0%, 100% { opacity: 0.15; transform: scale(0.7); } 50% { opacity: 1; transform: scale(1); } }
+@keyframes confetti {
+  0% { transform: translate3d(0, -20vh, 0) rotate(0deg); opacity: 1; }
+  100% { transform: translate3d(var(--drift, 0px), 110vh, 0) rotate(720deg); opacity: 0.9; }
+}
+@keyframes flicker {
+  0%, 100% { opacity: 0.85; transform: scale(1); }
+  40% { opacity: 1; transform: scale(1.04); }
+  70% { opacity: 0.75; transform: scale(0.98); }
+}
+@keyframes spin-slow { to { transform: rotate(360deg); } }
+@keyframes fade-out { to { opacity: 0; } }
+/* Machine à cadeaux : uniquement transform/opacity, peu coûteux sur une vieille tablette. */
+@keyframes belt { to { transform: translateX(-40px); } }
+@keyframes puff {
+  0% { opacity: 0; transform: translate(0, 0) scale(0.4); }
+  25% { opacity: 0.9; }
+  100% { opacity: 0; transform: translate(var(--dx, 0px), -70px) scale(1.6); }
+}
+@keyframes sparkle {
+  0% { opacity: 0; transform: translate(0, 0) scale(0.3); }
+  30% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--dx, 0px), var(--dy, -40px)) scale(1); }
+}
+@keyframes lid-open { from { transform: rotate(0deg); } to { transform: rotate(-38deg); } }
+@keyframes rise { from { opacity: 0; transform: translateY(60px) scale(0.4); } to { opacity: 1; transform: translateY(-14px); } }
+@keyframes sleigh {
+  from { transform: translateX(-30vw) translateY(10px); }
+  to { transform: translateX(110vw) translateY(-40px); }
+}
+
+@layer base {
+  html { -webkit-tap-highlight-color: transparent; }
+  body { @apply font-sans antialiased; background: var(--color-bois-950); color: var(--color-parchemin-100); }
+  button { cursor: pointer; }
+  button:disabled { cursor: not-allowed; }
+}
+
+@layer components {
+  .parchment {
+    background:
+      radial-gradient(ellipse at 20% 10%, rgb(255 255 255 / 0.55), transparent 55%),
+      radial-gradient(ellipse at 80% 90%, rgb(180 140 70 / 0.25), transparent 60%),
+      linear-gradient(135deg, var(--color-parchemin-50), var(--color-parchemin-200));
+    color: var(--color-encre);
+  }
+  .wood {
+    background:
+      repeating-linear-gradient(92deg, rgb(255 255 255 / 0.025) 0 2px, transparent 2px 9px),
+      linear-gradient(180deg, var(--color-bois-800), var(--color-bois-900));
+  }
+  .gold-border { border: 1px solid rgb(201 162 75 / 0.55); box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.25); }
+  .gold-text {
+    background: linear-gradient(180deg, var(--color-or-300), var(--color-or-500) 60%, var(--color-or-700));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
+}

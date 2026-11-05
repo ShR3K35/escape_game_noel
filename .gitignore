@@ -1,0 +1,28 @@
+# Secrets et données locales
+.env
+data/
+backups/
+
+# Vidéos (lourdes) : déposées à la main ou générées par scripts/generate-demo-videos.sh
+media/videos/*.mp4
+media/videos/*.webm
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+frontend/dist/
+frontend/test-results/
+frontend/playwright-report/
+frontend/blob-report/
+
+# Divers
+*.log
+.DS_Store
+Thumbs.db
+*.tsbuildinfo

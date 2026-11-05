@@ -1,0 +1,42 @@
+# Mode développement avec rechargement automatique (backend + frontend).
+#   docker compose -f compose.dev.yml up --build      (ou scripts/dev.ps1)
+# Application : http://localhost:8080 (Vite, qui relaie /api, /ws et /media vers le backend).
+name: noel2026-dev
+
+services:
+  backend:
+    build:
+      context: .
+      target: backend-dev
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      APP_ENV: development
+      LOG_FORMAT: text
+      DEMO_MODE: ${DEMO_MODE:-false}
+    volumes:
+      - ./backend:/app/backend
+      - ./config:/app/config:ro
+      - ./media:/media:ro
+      - noel-dev-data:/data
+    ports:
+      - "8000:8000"
+
+  frontend:
+    image: node:22-alpine
+    working_dir: /app
+    command: sh -c "npm ci --no-audit --no-fund && npm run dev"
+    environment:
+      BACKEND_URL: http://backend:8000
+      CHOKIDAR_USEPOLLING: "1"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "8080:8080"
+    depends_on:
+      - backend
+
+volumes:
+  noel-dev-data:

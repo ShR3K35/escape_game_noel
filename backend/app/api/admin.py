@@ -1,0 +1,153 @@
+"""Commandes du maître du jeu. Toutes nécessitent une session admin."""
+
+from typing import Literal
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import BaseModel, Field
+
+from app.api.deps import command, hub, require_admin, services
+from app.core.game_config import PHASES
+
+router = APIRouter(prefix="/api/admin", tags=["admin"], dependencies=[Depends(require_admin)])
+
+
+class Confirm(BaseModel):
+    confirm: bool = False
+
+
+class PhaseBody(BaseModel):
+    phase: Literal[PHASES]  # type: ignore[valid-type]
+    confirm: bool = False
+
+
+class TeamBody(BaseModel):
+    status: Literal["NON_COMMENCE", "EN_COURS", "VALIDEE"]
+
+
+class PlayBody(BaseModel):
+    video_id: str = Field(min_length=1, max_length=60)
+
+
+class MessageBody(BaseModel):
+    message_id: str | None = Field(None, max_length=40)
+    title: str | None = Field(None, max_length=120)
+    text: str | None = Field(None, max_length=600)
+    duration: int | None = Field(None, ge=3, le=600)
+
+
+class AmbientBody(BaseModel):
+    ambient: str = Field(max_length=20)
+
+
+class ProgressBody(BaseModel):
+    visible: bool
+
+
+class ScheduleBody(BaseModel):
+    at: str | None = Field(None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    enabled: bool | None = None
+
+
+def _require_confirm(body: Confirm) -> None:
+    if not body.confirm:
+        raise HTTPException(status_code=428, detail="confirmation requise")
+
+
+@router.get("/state")
+async def state(request: Request, svc=Depends(services), h=Depends(hub)):
+    return svc.read(lambda s: svc.admin_view(s, h.counts()))
+
+
+@router.get("/events")
+async def events(limit: int = Query(100, ge=1, le=500), svc=Depends(services)):
+    return svc.read(lambda s: svc.events(s, limit))
+
+
+# ------------------------------------------------------------------ partie
+@router.post("/game/start")
+async def start(request: Request, svc=Depends(services)):
+    return await command(request, lambda s: svc.game.set_phase(s, "INTRO"))
+
+
+@router.post("/game/phase")
+async def phase(body: PhaseBody, request: Request, svc=Depends(services)):
+    return await command(request, lambda s: svc.game.set_phase(s, body.phase, confirm=body.confirm))
+
+
+@router.post("/game/reset")
+async def reset(body: Confirm, request: Request, svc=Depends(services)):
+    _require_confirm(body)
+    return await command(request, svc.reset_all)
+
+
+@router.post("/backup")
+async def backup(request: Request, svc=Depends(services)):
+    async with svc.lock:
+        path = svc.backup()
+    return {"file": path.name}
+
+
+# ------------------------------------------------------------------ équipes
+@router.post("/teams/{team_id}")
+async def team(team_id: str, body: TeamBody, request: Request, svc=Depends(services)):
+    return await command(request, lambda s: svc.game.set_team_status(s, team_id, body.status))
+
+
+# ----------------------------------------------------------------------- TV
+@router.post("/tv/play")
+async def play(body: PlayBody, request: Request, svc=Depends(services)):
+    return await command(request, lambda s: svc.game.play_video(s, body.video_id))
+
+
+@router.post("/tv/stop")
+async def stop(request: Request, svc=Depends(services)):
+    return await command(request, svc.game.stop_video)
+
+
+@router.post("/tv/message")
+async def message(body: MessageBody, request: Request, svc=Depends(services)):
+    return await command(request, lambda s: svc.game.show_message(
+        s, message_id=body.message_id, text=body.text, title=body.title, duration=body.duration))
+
+
+@router.post("/tv/message/clear")
+async def clear_message(request: Request, svc=Depends(services)):
+    return await command(request, svc.game.clear_message)
+
+
+@router.post("/tv/ambient")
+async def ambient(body: AmbientBody, request: Request, svc=Depends(services)):
+    return await command(request, lambda s: svc.game.set_ambient(s, body.ambient))
+
+
+@router.post("/tv/progress")
+async def progress(body: ProgressBody, request: Request, svc=Depends(services)):
+    return await command(request, lambda s: svc.game.set_show_progress(s, body.visible))
+
+
+# ------------------------------------------------------------------ lutins
+@router.post("/kids/reset")
+async def kids_reset_all(body: Confirm, request: Request, svc=Depends(services)):
+    _require_confirm(body)
+    return await command(request, lambda s: svc.kids.reset_all(s) or {"changed": True})
+
+
+@router.post("/kids/{game_id}/complete")
+async def kids_complete(game_id: str, request: Request, svc=Depends(services)):
+    return await command(request, lambda s: svc.kids.admin_complete(s, game_id))
+
+
+@router.post("/kids/{game_id}/reset")
+async def kids_reset(game_id: str, request: Request, svc=Depends(services)):
+    return await command(request, lambda s: svc.kids.reset_game(s, game_id))
+
+
+# ----------------------------------------------------------------- planning
+@router.post("/schedule/{item_id}")
+async def schedule_update(item_id: str, body: ScheduleBody, request: Request, svc=Depends(services)):
+    return await command(request, lambda s: svc.schedule.update(s, item_id, at=body.at, enabled=body.enabled))
+
+
+@router.post("/schedule/{item_id}/fire")
+async def schedule_fire(item_id: str, request: Request, svc=Depends(services)):
+    return await command(request, lambda s: svc.schedule.fire(s, item_id))

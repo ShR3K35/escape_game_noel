@@ -1,0 +1,30 @@
+# Version complète locale (Windows / Linux / macOS) : http://localhost:8080
+#   docker compose up --build
+# Fonctionne sans fichier .env (mot de passe admin de développement : noel2026).
+name: noel2026
+
+services:
+  app:
+    build:
+      context: .
+      target: runtime
+    image: noel2026:latest
+    ports:
+      - "8080:8080"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+    volumes:
+      # Base SQLite dans un volume Docker (évite les soucis de verrouillage SQLite sur les partages Windows).
+      - noel-data:/data
+      - ./media:/media:ro
+      - ./config:/app/config:ro
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+volumes:
+  noel-data:

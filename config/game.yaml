@@ -1,0 +1,310 @@
+# Configuration du Cluedo Escape de Noël 2026.
+# Modifiable sans toucher au code : redémarrer le service après modification
+#   docker compose restart app      (ou compose.prod.yml sur le Raspberry Pi)
+# Vérification : docker compose exec app python -m app.cli check-config
+
+game:
+  title: "La Clé des Étoiles — Noël 2026"
+  timezone: "Europe/Paris"
+  start_time: "20:00"      # heure nominale de démarrage (référence du planning)
+  end_time: "21:30"
+  demo_time_scale: 30      # DEMO_MODE=true : 30 minutes de jeu passent en 1 minute
+  auto_advance: true       # fin de la vidéo d'intro -> ENQUETE ; fin victoire/secours -> FIN
+
+teams:
+  - id: rouge
+    name: "Équipe Rouge"
+    theme: "Les Archives"
+    color: "#9b1c2c"
+    enigma: "Le tiroir secret des archives"
+    description: "Retrouver le registre caché et ouvrir le tiroir."
+  - id: verte
+    name: "Équipe Verte"
+    theme: "Les Lumières"
+    color: "#1f5130"
+    enigma: "La séquence des couleurs"
+    description: "Reconstituer la séquence ROUGE → BLEU → VERT → JAUNE."
+  - id: bleue
+    name: "Équipe Bleue"
+    theme: "Les Témoins"
+    color: "#1e3a6e"
+    enigma: "La formule magique"
+    description: "Interroger les témoins et découvrir la formule qui révèle l'indice du volet."
+  - id: or
+    name: "Équipe Or"
+    theme: "Les Déchiffreurs"
+    color: "#a07a2c"
+    enigma: "Le message crypté"
+    description: "Réunir les fragments détenus par les autres adultes et déchiffrer le message."
+
+# Manifeste des vidéos : fichiers à déposer dans media/videos/.
+# Si un fichier manque, la TV affiche un écran de substitution (fallback_text) pendant fallback_seconds.
+videos:
+  - id: loop_bureau
+    file: 00_loop_bureau.mp4
+    kind: loop
+    title: "Le bureau du Père Noël"
+    fallback_text: "Le Père Noël travaille dans son bureau…"
+  - id: intro
+    file: 01_intro_2000.mp4
+    title: "Introduction — La Clé des Étoiles a disparu"
+    fallback_text: "Ho ho ho ! Mes amis, une terrible nouvelle : la Clé des Étoiles a disparu ! Sans elle, mon traîneau ne pourra pas décoller. Menez l'enquête !"
+    fallback_seconds: 20
+  - id: relance
+    file: 02_relance_2030.mp4
+    title: "Relance de 20h30"
+    fallback_text: "Vous avancez bien… mais le voleur a laissé d'autres traces. Fouillez chaque recoin !"
+    fallback_seconds: 15
+  - id: alerte
+    file: 03_alerte_2050.mp4
+    title: "Alerte de 20h50"
+    fallback_text: "Alerte ! Les rennes s'impatientent. Il ne reste plus beaucoup de temps avant le grand départ !"
+    fallback_seconds: 15
+  - id: finale
+    file: 04_finale_2115.mp4
+    title: "Finale de 21h15"
+    fallback_text: "Le moment de vérité approche. Rassemblez vos indices : qui a pris la Clé des Étoiles ?"
+    fallback_seconds: 15
+  - id: victoire
+    file: 05_victoire.mp4
+    title: "Victoire !"
+    fallback_text: "Bravo ! Grâce à vous, la Clé des Étoiles est retrouvée. Joyeux Noël à tous !"
+    fallback_seconds: 20
+  - id: secours
+    file: 06_secours_lutins.mp4
+    title: "Secours des lutins"
+    fallback_text: "Les petits lutins sont venus à la rescousse ! Ils ont retrouvé la Clé des Étoiles."
+    fallback_seconds: 20
+  - id: appel_lutins
+    file: 07_appel_lutins_2300.mp4
+    title: "Appel des lutins — 23h"
+    fallback_text: "Petits lutins… le Père Noël vous attend dans son bureau. Venez vite !"
+    fallback_seconds: 20
+
+# Vidéo jouée automatiquement à l'entrée dans une phase.
+phase_videos:
+  INTRO: intro
+  FINALE: finale
+  VICTOIRE: victoire
+  SECOURS: secours
+
+# Messages du Père Noël affichés en surimpression sur la TV.
+messages:
+  - id: courage
+    title: "Message du Père Noël"
+    text: "Courage, mes enquêteurs ! Chaque indice vous rapproche de la Clé des Étoiles."
+    duration: 20
+  - id: entraide
+    title: "Message du Père Noël"
+    text: "Les équipes ont chacune un morceau de la vérité. Parlez-vous !"
+    duration: 20
+  - id: trente_minutes
+    title: "Il reste 30 minutes"
+    text: "Les rennes sont attelés. Plus que trente minutes avant le départ du traîneau !"
+    duration: 15
+  - id: dix_minutes
+    title: "Il reste 10 minutes"
+    text: "Dépêchez-vous ! Le traîneau décolle dans dix minutes."
+    duration: 15
+  - id: bravo_lutins
+    title: "Bravo les lutins !"
+    text: "Mes petits lutins ont réussi toutes leurs missions. Je suis fier de vous !"
+    duration: 15
+
+# Planning de la soirée.
+#   anchor: start -> relatif au démarrage réel de la partie (décalé si elle commence en retard)
+#   anchor: clock -> heure fixe
+#   action: video | phase | message ; target : identifiant correspondant
+schedule:
+  - id: relance
+    label: "Vidéo de relance"
+    at: "20:30"
+    action: video
+    target: relance
+  - id: alerte
+    label: "Vidéo d'alerte"
+    at: "20:50"
+    action: video
+    target: alerte
+  - id: rappel_30
+    label: "Message « 30 minutes »"
+    at: "21:00"
+    action: message
+    target: trente_minutes
+  - id: finale
+    label: "Passage en finale"
+    at: "21:15"
+    action: phase
+    target: FINALE
+  - id: rappel_10
+    label: "Message « 10 minutes »"
+    at: "21:20"
+    action: message
+    target: dix_minutes
+  - id: appel_lutins
+    label: "Appel des lutins (23h)"
+    at: "23:00"
+    anchor: clock
+    action: video
+    target: appel_lutins
+
+kids:
+  attempts_per_hint: 2      # un nouvel indice tous les 2 essais manqués
+  final_title: "Mission accomplie !"
+  final_message: "Bravo, petits lutins ! Le traîneau est prêt à partir. Allez vite voir le maître du jeu : il a un secret à vous confier…"
+
+  constellation:
+    title: "La constellation"
+    instructions: "Regardez bien les étoiles… puis replacez-les dans le ciel !"
+    cols: 6
+    rows: 4
+    memorize_seconds: 8
+    stars: [[0, 2], [1, 0], [2, 3], [3, 1], [4, 3], [5, 0]]
+    reward: { symbol: "⭐", label: "l'Étoile du Berger", digit: 4 }
+    hints:
+      - "Il y a 6 étoiles en tout. Comptez-les bien !"
+      - "Une étoile se cache tout en haut à droite du ciel."
+      - "Une autre étoile est tout en haut, presque à gauche."
+
+  machine:
+    title: "La machine à cadeaux"
+    instructions: "Lisez la commande, calculez ensemble, puis touchez le cadeau qui porte la bonne réponse."
+    intro: "Catastrophe ! La machine du Père Noël est en panne ! Aidez les lutins à préparer 8 cadeaux pour sauver Noël !"
+    # 8 commandes tirées au hasard à chaque partie : 3 faciles, puis 3 moyennes, puis 2 difficiles.
+    # « calc » est vérifié au démarrage (+, -, × uniquement : aucune division, résultats entre 0 et 1000).
+    orders_per_level: [3, 3, 2]
+    reward: { symbol: "⚙️", label: "l'engrenage d'or", digit: 7 }
+    questions:
+      # Niveau 1 : tables de 2, 3, 4, 5, 10 ; additions et soustractions sans grosse retenue
+      - { id: q01, level: 1, calc: "4 × 5", answer: 20, choices: [9, 15, 20, 25],
+          text: "Chaque renne reçoit 5 carottes. Il y a 4 rennes. Combien faut-il de carottes ?",
+          hint: "4 rennes qui ont chacun 5 carottes : c'est 4 fois 5. Comptez de 5 en 5 !" }
+      - { id: q02, level: 1, calc: "23 + 14", answer: 37, choices: [27, 37, 38, 47],
+          text: "Un lutin emballe 23 cadeaux le matin et 14 l'après-midi. Combien de cadeaux a-t-il emballés ?",
+          hint: "On ajoute : 23 + 14. Les dizaines d'abord (20 + 10), puis les unités (3 + 4)." }
+      - { id: q03, level: 1, calc: "3 × 10", answer: 30, choices: [13, 30, 33, 40],
+          text: "Le traîneau transporte 3 sacs de 10 jouets. Combien de jouets y a-t-il ?",
+          hint: "3 sacs de 10 : comptez de 10 en 10, trois fois." }
+      - { id: q04, level: 1, calc: "48 - 15", answer: 33, choices: [23, 33, 37, 63],
+          text: "Il y a 48 boules sur le sapin. 15 tombent par terre. Combien en reste-t-il sur le sapin ?",
+          hint: "Des boules tombent : on enlève. 48 - 15 : enlevez 10, puis encore 5." }
+      - { id: q05, level: 1, calc: "9 × 2", answer: 18, choices: [11, 16, 18, 20],
+          text: "Chaque lutin a 2 bonnets. Il y a 9 lutins. Combien y a-t-il de bonnets ?",
+          hint: "9 lutins avec 2 bonnets chacun : c'est le double de 9." }
+      - { id: q06, level: 1, calc: "35 + 40", answer: 75, choices: [65, 70, 75, 85],
+          text: "Mère Noël prépare 35 biscuits, puis encore 40. Combien de biscuits a-t-elle préparés ?",
+          hint: "On ajoute 40 à 35 : avancez de 4 dizaines." }
+      - { id: q07, level: 1, calc: "3 × 5", answer: 15, choices: [8, 12, 15, 18],
+          text: "Dans chaque rue, il y a 5 cheminées. Le Père Noël visite 3 rues. Combien de cheminées visite-t-il ?",
+          hint: "3 rues de 5 cheminées : 5 + 5 + 5." }
+      - { id: q08, level: 1, calc: "60 - 20", answer: 40, choices: [30, 40, 50, 80],
+          text: "La lettre au Père Noël contient 60 mots. Léa en a déjà lu 20. Combien de mots lui reste-t-il à lire ?",
+          hint: "Il en reste : on enlève les mots déjà lus. 6 dizaines moins 2 dizaines." }
+      - { id: q09, level: 1, calc: "4 × 6", answer: 24, choices: [10, 20, 24, 28],
+          text: "Une guirlande a 4 rangées de 6 lumières. Combien y a-t-il de lumières ?",
+          hint: "4 rangées de 6 : c'est 4 fois 6, ou 6 + 6 + 6 + 6." }
+      - { id: q10, level: 1, calc: "100 - 30", answer: 70, choices: [60, 70, 80, 130],
+          text: "Le Père Noël a 100 sucres d'orge. Il en donne 30 aux rennes. Combien lui en reste-t-il ?",
+          hint: "Il en donne : on enlève. 10 dizaines moins 3 dizaines." }
+      - { id: q11, level: 1, calc: "8 × 3", answer: 24, choices: [11, 21, 24, 27],
+          text: "Chaque chaussette contient 3 chocolats. Il y a 8 chaussettes. Combien y a-t-il de chocolats ?",
+          hint: "8 chaussettes de 3 chocolats : c'est 8 fois 3. Pensez à la table de 3 !" }
+      - { id: q12, level: 1, calc: "52 + 26", answer: 78, choices: [68, 76, 78, 88],
+          text: "Un lutin peint 52 jouets lundi et 26 mardi. Combien de jouets a-t-il peints ?",
+          hint: "On ajoute : 50 + 20, puis 2 + 6." }
+      # Niveau 2 : tables de 6 à 9 ; additions et soustractions avec retenue jusqu'à 1 000
+      - { id: q13, level: 2, calc: "6 × 7", answer: 42, choices: [36, 42, 48, 56],
+          text: "Chaque renne reçoit 7 carottes. Il y a 6 rennes. Combien faut-il de carottes ?",
+          hint: "6 rennes qui ont chacun 7 carottes : c'est 6 fois 7. Pensez à la table de 6 !" }
+      - { id: q14, level: 2, calc: "120 - 45", answer: 75, choices: [65, 75, 85, 95],
+          text: "Le Père Noël possède 120 cadeaux. Il en distribue 45. Combien lui en reste-t-il ?",
+          hint: "Il en distribue : on enlève. 120 - 40 = 80, puis on enlève encore 5." }
+      - { id: q15, level: 2, calc: "8 × 9", answer: 72, choices: [63, 72, 81, 90],
+          text: "Les lutins préparent 8 sacs contenant chacun 9 bonbons. Combien de bonbons faut-il ?",
+          hint: "8 sacs de 9 bonbons : c'est 8 fois 9. Astuce : 8 fois 10, moins 8." }
+      - { id: q16, level: 2, calc: "256 + 178", answer: 434, choices: [324, 424, 434, 444],
+          text: "L'atelier fabrique 256 poupées et 178 petites voitures. Combien de jouets fabrique-t-il en tout ?",
+          hint: "En tout : on ajoute. Attention aux retenues : 6 + 8 = 14, on retient 1 !" }
+      - { id: q17, level: 2, calc: "9 × 6", answer: 54, choices: [45, 54, 56, 63],
+          text: "Dans la forêt du pôle Nord, il y a 9 rangées de 6 sapins. Combien y a-t-il de sapins ?",
+          hint: "9 rangées de 6 : c'est 9 fois 6. Astuce : 10 fois 6, moins 6." }
+      - { id: q18, level: 2, calc: "500 - 345", answer: 155, choices: [145, 155, 165, 255],
+          text: "Le traîneau doit parcourir 500 kilomètres. Il en a déjà fait 345. Combien de kilomètres lui reste-t-il ?",
+          hint: "Ce qui reste : 500 - 345. Comptez de 345 jusqu'à 500 : 345 → 350 → 400 → 500." }
+      - { id: q19, level: 2, calc: "7 × 8", answer: 56, choices: [48, 54, 56, 64],
+          text: "Chaque boîte contient 8 boules de Noël. Il y a 7 boîtes. Combien de boules y a-t-il ?",
+          hint: "7 boîtes de 8 : c'est 7 fois 8. Pensez à la table de 8 !" }
+      - { id: q20, level: 2, calc: "312 + 289", answer: 601, choices: [501, 591, 601, 611],
+          text: "Les lutins ont 312 rubans rouges et 289 rubans verts. Combien de rubans ont-ils ?",
+          hint: "On ajoute. 289, c'est presque 300 : 312 + 300, puis on enlève 11." }
+      - { id: q21, level: 2, calc: "6 × 8", answer: 48, choices: [42, 46, 48, 54],
+          text: "Il y a 6 lutins. Chacun fabrique 8 jouets. Combien de jouets sont fabriqués ?",
+          hint: "6 lutins qui font chacun 8 jouets : c'est 6 fois 8." }
+      - { id: q22, level: 2, calc: "430 - 160", answer: 270, choices: [260, 270, 290, 370],
+          text: "Mère Noël a fait 430 biscuits. Les lutins en mangent 160. Combien en reste-t-il ?",
+          hint: "Ils en mangent : on enlève. 430 - 100 = 330, puis on enlève encore 60." }
+      # Niveau 3 : petits problèmes en deux étapes
+      - { id: q23, level: 3, calc: "3 × 9 + 5", answer: 32, choices: [27, 32, 35, 45],
+          text: "Le Père Noël a 3 sacs de 9 cadeaux et encore 5 cadeaux dans les mains. Combien de cadeaux a-t-il ?",
+          hint: "Deux étapes : d'abord les sacs (3 fois 9), puis ajoutez les 5 cadeaux." }
+      - { id: q24, level: 3, calc: "70 - 9 × 6", answer: 16, choices: [14, 16, 24, 61],
+          text: "Il y a 70 carottes dans le panier. Chacun des 9 rennes en mange 6. Combien de carottes reste-t-il ?",
+          hint: "D'abord, combien les rennes en mangent : 9 fois 6. Puis enlevez ce nombre à 70." }
+      - { id: q25, level: 3, calc: "8 × 7 + 4", answer: 60, choices: [56, 58, 60, 64],
+          text: "Un lutin emballe 8 cadeaux par heure pendant 7 heures, puis encore 4 cadeaux. Combien de cadeaux a-t-il emballés ?",
+          hint: "D'abord 8 fois 7, puis ajoutez les 4 derniers cadeaux." }
+      - { id: q26, level: 3, calc: "500 - 125 - 230", answer: 145, choices: [145, 155, 245, 355],
+          text: "L'atelier a 500 jouets. On en charge 125 sur le traîneau le matin et 230 le soir. Combien en reste-t-il ?",
+          hint: "On enlève deux fois : d'abord 500 - 125, puis enlevez encore 230." }
+      - { id: q27, level: 3, calc: "4 × 10 + 3 × 10", answer: 70, choices: [43, 60, 70, 77],
+          text: "Il y a 4 étagères de 10 ours en peluche et 3 étagères de 10 poupées. Combien de jouets y a-t-il en tout ?",
+          hint: "Comptez les ours (4 fois 10), puis les poupées (3 fois 10), et ajoutez." }
+      - { id: q28, level: 3, calc: "9 × 7 + 20", answer: 83, choices: [73, 83, 85, 93],
+          text: "Chacun des 9 rennes porte 7 grelots. Le Père Noël en accroche encore 20 au traîneau. Combien y a-t-il de grelots ?",
+          hint: "D'abord les grelots des rennes : 9 fois 7. Puis ajoutez les 20 du traîneau." }
+      - { id: q29, level: 3, calc: "1000 - 650 - 200", answer: 150, choices: [150, 250, 350, 450],
+          text: "Le Père Noël doit livrer 1 000 cadeaux. Il en a livré 650, puis encore 200. Combien lui en reste-t-il à livrer ?",
+          hint: "Il a livré 650 + 200 cadeaux en tout. Combien faut-il ajouter pour arriver à 1 000 ?" }
+      - { id: q30, level: 3, calc: "6 × 8 - 5", answer: 43, choices: [38, 43, 45, 53],
+          text: "Les lutins rangent 6 boîtes de 8 crayons. Ensuite, ils perdent 5 crayons. Combien de crayons leur reste-t-il ?",
+          hint: "D'abord 6 fois 8, puis enlevez les 5 crayons perdus." }
+      - { id: q31, level: 3, calc: "(7 + 8) × 5", answer: 75, choices: [40, 70, 75, 85],
+          text: "Une guirlande a 7 lumières rouges et 8 lumières vertes. Il y a 5 guirlandes. Combien de lumières y a-t-il en tout ?",
+          hint: "D'abord, combien de lumières sur une guirlande (7 + 8). Puis 5 guirlandes : 5 fois ce nombre." }
+      - { id: q32, level: 3, calc: "3 × 9 + 2 × 8", answer: 43, choices: [33, 41, 43, 53],
+          text: "Mère Noël fait 3 plaques de 9 biscuits et 2 plaques de 8 biscuits. Combien de biscuits a-t-elle faits ?",
+          hint: "Comptez les biscuits de chaque sorte (3 fois 9, puis 2 fois 8), puis ajoutez." }
+
+  cadeaux:
+    title: "Les cadeaux mélangés"
+    instructions: "Oh non, les cadeaux sont mélangés ! Rangez chaque cadeau dans le bon sac."
+    gifts:
+      - { id: g1, color: rouge, size: grand, symbol: etoile }
+      - { id: g2, color: vert, size: petit, symbol: sapin }
+      - { id: g3, color: bleu, size: grand, symbol: cloche }
+      - { id: g4, color: rouge, size: petit, symbol: sapin }
+      - { id: g5, color: vert, size: grand, symbol: cloche }
+      - { id: g6, color: bleu, size: petit, symbol: etoile }
+    rounds:
+      - rule: color
+        instructions: "Manche 1 : rangez les cadeaux selon leur COULEUR."
+        bins: [{ value: rouge, label: "Sac rouge" }, { value: vert, label: "Sac vert" }, { value: bleu, label: "Sac bleu" }]
+      - rule: size
+        instructions: "Manche 2 : rangez les cadeaux selon leur TAILLE."
+        bins: [{ value: petit, label: "Petits cadeaux" }, { value: grand, label: "Grands cadeaux" }]
+      - rule: symbol
+        instructions: "Manche 3 : rangez les cadeaux selon leur SYMBOLE."
+        bins: [{ value: etoile, label: "Sac étoile" }, { value: sapin, label: "Sac sapin" }, { value: cloche, label: "Sac cloche" }]
+    reward: { symbol: "🎁", label: "le ruban magique", digit: 2 }
+    hints:
+      - "Regardez seulement ce que demande la manche, pas le reste !"
+      - "Chaque sac doit contenir au moins un cadeau."
+
+  code:
+    title: "Le code du traîneau"
+    instructions: "Utilisez vos trois récompenses pour démarrer le traîneau !"
+    riddle: "D'abord le chiffre de l'engrenage ⚙️, puis celui de l'étoile ⭐, et enfin celui du cadeau 🎁."
+    code: "742"
+    hints:
+      - "Regardez les chiffres de vos récompenses en haut de l'écran."
+      - "Le code commence par 7."

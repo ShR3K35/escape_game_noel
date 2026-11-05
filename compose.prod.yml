@@ -1,0 +1,28 @@
+# Production Raspberry Pi (ARM64) : http://noel2026.local
+#   docker compose -f compose.prod.yml up -d --build      (ou scripts/deploy-pi.sh)
+name: noel2026
+
+services:
+  app:
+    build:
+      context: .
+      target: runtime
+    image: noel2026:latest
+    ports:
+      # Réseau local uniquement : aucune redirection de port n'est configurée sur la box.
+      - "${HTTP_PORT:-80}:8080"
+    env_file:
+      - path: .env
+        required: true
+    environment:
+      APP_ENV: production
+    user: "${APP_UID:-1000}:${APP_GID:-1000}"
+    volumes:
+      - ./data:/data
+      - ./media:/media:ro
+      - ./config:/app/config:ro
+    restart: unless-stopped
+    stop_grace_period: 10s
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "5" }
