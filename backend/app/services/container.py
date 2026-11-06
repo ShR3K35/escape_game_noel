@@ -35,7 +35,7 @@ class Services:
         self.game = GameService(cfg, settings.media_dir, clock)
         self.kids = KidsService(cfg, clock)
         self.schedule = ScheduleService(cfg, self.game, clock, self.time_scale)
-        self.actions = ActionsService(clock)
+        self.actions = ActionsService(clock, self.game)
         # Sérialise les commandes : une seule mutation à la fois.
         self.lock = asyncio.Lock()
 

@@ -1,25 +1,53 @@
 """Routes du boîtier ESP32 Matter (/api/devices)."""
 
-from app.models import EventLog
+import pytest
+
+from app.models import EventLog, TeamProgress
 
 TOKEN = "jeton-esp32-de-test"
 
 
-def test_catalog_lists_ten_undefined_actions(client):
+def team_status(svc, team_id: str) -> str:
+    with svc.sf() as s:
+        return s.get(TeamProgress, team_id).status
+
+
+def test_catalog_lists_ten_actions_first_four_defined(client):
     r = client.get("/api/devices/actions")
     assert r.status_code == 200
     actions = r.json()["actions"]
     assert [a["action"] for a in actions] == list(range(1, 11))
-    assert not any(a["defined"] for a in actions)
+    assert [a["action"] for a in actions if a["defined"]] == [1, 2, 3, 4]
+
+
+@pytest.mark.parametrize(("number", "team_id"), [(1, "rouge"), (2, "verte"), (3, "bleue"), (4, "or")])
+def test_actions_1_to_4_validate_team_mission(client, svc, number, team_id):
+    r = client.post(f"/api/devices/actions/{number}", json={"source": "matter"})
+    assert r.status_code == 200
+    assert r.json() == {"action": number, "defined": True, "changed": True, "effect": "team_validated",
+                        "team": team_id, "status": "VALIDEE"}
+    assert team_status(svc, team_id) == "VALIDEE"
+    others = {"rouge", "verte", "bleue", "or"} - {team_id}
+    assert all(team_status(svc, t) == "NON_COMMENCE" for t in others)
+    with svc.sf() as s:
+        steps = [e.data["to"] for e in s.query(EventLog).filter_by(type="team_changed").order_by(EventLog.id)]
+        assert steps == ["EN_COURS", "VALIDEE"]
+        assert {e.source for e in s.query(EventLog).filter_by(type="team_changed")} == {"device"}
+
+
+def test_validating_twice_changes_nothing(client, svc):
+    client.post("/api/devices/actions/1")
+    again = client.post("/api/devices/actions/1").json()
+    assert again["changed"] is False and again["status"] == "VALIDEE"
 
 
 def test_trigger_undefined_action_is_logged(client, svc):
-    r = client.post("/api/devices/actions/3", json={"source": "bouton", "device": "esp32-salon"})
+    r = client.post("/api/devices/actions/7", json={"source": "bouton", "device": "esp32-salon"})
     assert r.status_code == 200
-    assert r.json() == {"action": 3, "defined": False, "changed": False}
+    assert r.json() == {"action": 7, "defined": False, "changed": False}
     with svc.sf() as s:
         entry = s.query(EventLog).filter_by(type="device_action").one()
-        assert entry.data == {"action": 3, "source": "bouton", "device": "esp32-salon", "defined": False}
+        assert entry.data == {"action": 7, "source": "bouton", "device": "esp32-salon", "defined": False}
 
 
 def test_trigger_without_body_defaults_to_matter(client):

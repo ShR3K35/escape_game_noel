@@ -38,7 +38,7 @@ vers uvicorn `--reload` (port 8000).
 | `services/kids.py` | mini-jeux : progression séquentielle, vérification des réponses côté serveur, indices, tirage des commandes de la machine à cadeaux (conservé en base), niveau de difficulté de la tournée du traîneau choisi par le MJ |
 | `services/schedule.py` | planning de la soirée (relatif au démarrage ou heure fixe, accélération démo) |
 | `services/container.py` | transactions, idempotence, vues par écran, sauvegarde |
-| `services/actions.py` | actions 1 à 10 déclenchées par le boîtier ESP32 Matter (journalisées ; effets à brancher dans `handlers`, voir `firmware/esp32-matter/README.md`) |
+| `services/actions.py` | actions 1 à 10 déclenchées par le boîtier ESP32 Matter, journalisées ; 1 à 4 valident la mission des équipes rouge, verte, bleue, or (`handlers`, voir `firmware/esp32-matter/README.md`) |
 | `services/realtime.py` | diffusion WebSocket des instantanés d'état |
 | `api/` | routes REST et WebSocket |
 | `cli.py` | `hash-password`, `check-config`, `backup`, `seed-demo` |

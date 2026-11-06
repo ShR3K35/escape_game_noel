@@ -50,8 +50,18 @@ Sans `DEVICE_TOKEN`, les routes `/api/devices/*` répondent 503 en production (e
 | `GET /api/devices/actions` | liste les actions 1-10 et indique si elles sont définies |
 | `POST /api/devices/actions/{n}` | déclenche l'action n ; corps facultatif `{"source": "matter"\|"test", "device": "esp32-escape"}` |
 
-Chaque appui est journalisé (`device_action`, visible dans le journal de l'admin). Tant qu'aucune action n'est
-définie, la réponse est `{"action": n, "defined": false, "changed": false}`. Le boîtier envoie un
+Chaque appui est journalisé (`device_action`, visible dans le journal de l'admin), puis l'action est exécutée :
+
+| Action | Effet |
+|---|---|
+| 1 | valide la mission de l'**équipe Rouge** |
+| 2 | valide la mission de l'**équipe Verte** |
+| 3 | valide la mission de l'**équipe Bleue** |
+| 4 | valide la mission de l'**équipe Or** |
+| 5 à 10 | rien pour l'instant : réponse `{"action": n, "defined": false, "changed": false}` |
+
+Valider une équipe déjà validée est sans effet (`"changed": false`). La validation passe par les mêmes étapes
+journalisées qu'au téléphone du MJ (source `device`) et s'affiche aussitôt sur tous les écrans. Le boîtier envoie un Le boîtier envoie un
 `Idempotency-Key` par appui : ses nouvelles tentatives réseau ne rejouent pas l'action.
 
 Pour brancher une action, ajouter une fonction dans `ActionsService.handlers`
