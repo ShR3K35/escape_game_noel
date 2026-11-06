@@ -70,5 +70,10 @@ export const sfx = {
   jingle: () => play(() => [2093, 2637, 2349, 2794, 2093, 3136].forEach((f, i) => tone(f, i * 0.07, 0.25, "sine", 0.07))),
   /** Machine qui hoquette : son amusant pour une erreur. */
   boing: () => play(() => { sweep(420, 90, 0, 0.35); sweep(300, 70, 0.3, 0.3, 0.08); }),
+  /** Tournée du traîneau : changement de couloir, choc, cadeau attrapé, décompte. */
+  whoosh: () => play(() => sweep(500, 900, 0, 0.12, 0.025)),
+  crash: () => play(() => { sweep(300, 60, 0, 0.4, 0.12); tone(110, 0, 0.3, "square", 0.05); }),
+  gift: () => play(() => [1568, 2093].forEach((f, i) => tone(f, i * 0.06, 0.18, "sine", 0.08))),
+  beep: (high = false) => play(() => tone(high ? 1046 : 523, 0, high ? 0.5 : 0.2, "triangle", 0.12)),
   bell: () => play(() => { tone(1568, 0, 1.2, "sine", 0.1); tone(2093, 0.02, 1, "sine", 0.05); }),
 };

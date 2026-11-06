@@ -9,6 +9,7 @@ export async function resetGame(request: APIRequestContext) {
   expect(reset.ok()).toBeTruthy();
   // Réglage d'affichage conservé par la réinitialisation : on le remet à sa valeur par défaut.
   expect((await request.post("/api/admin/tv/progress", { data: { visible: true } })).ok()).toBeTruthy();
+  expect((await request.post("/api/admin/kids/tournee/difficulty", { data: { level: "normal" } })).ok()).toBeTruthy();
 }
 
 export async function loginAdmin(page: Page) {

@@ -3,7 +3,7 @@ import type { KidsGameId, PublicState } from "../../services/types";
 /** Durée d'affichage d'une animation de succès sur la TV. */
 export const CELEBRATION_MS = 6500;
 
-export const KIDS_ICONS: Record<KidsGameId, string> = { constellation: "✨", machine: "⚙️", cadeaux: "🎁", code: "🛷" };
+export const KIDS_ICONS: Record<KidsGameId, string> = { constellation: "✨", machine: "⚙️", tournee: "🎅", code: "🛷" };
 
 export type Success =
   | { key: string; kind: "team"; id: string; name: string; theme: string; color: string }

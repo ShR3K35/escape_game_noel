@@ -9,11 +9,12 @@ from app.core.game_config import load_game_config
 MACHINE = load_game_config(REPO_ROOT / "config").kids.machine
 BY_TEXT = {q.text: q for q in MACHINE.questions}
 STARS = [[0, 2], [1, 0], [2, 3], [3, 1], [4, 3], [5, 0]]
-GIFTS = {
-    "color": {"g1": "rouge", "g2": "vert", "g3": "bleu", "g4": "rouge", "g5": "vert", "g6": "bleu"},
-    "size": {"g1": "grand", "g2": "petit", "g3": "grand", "g4": "petit", "g5": "grand", "g6": "petit"},
-    "symbol": {"g1": "etoile", "g2": "sapin", "g3": "cloche", "g4": "sapin", "g5": "cloche", "g6": "etoile"},
-}
+TOURNEE = load_game_config(REPO_ROOT / "config").kids.tournee
+
+
+def flight(level="normal", **kw):
+    lv = TOURNEE.levels.get(level, TOURNEE.levels["normal"])
+    return {"level": level, "finished": True, "hits": 0, "seconds": lv.duration, "progress": 1.0, "gifts": 3} | kw
 
 
 def attempt(client, game, answer):
@@ -39,8 +40,7 @@ def solve_machine(client):
 def solve_all(client):
     assert attempt(client, "constellation", {"cells": STARS}).json()["completed"]
     assert solve_machine(client)["completed"]
-    for i, rule in enumerate(("color", "size", "symbol")):
-        assert attempt(client, "cadeaux", {"round": i, "placement": GIFTS[rule]}).json()["correct"]
+    assert attempt(client, "tournee", flight()).json()["completed"]
     return attempt(client, "code", {"code": "742"}).json()
 
 
@@ -55,7 +55,7 @@ def test_initial_kids_state(client):
 def test_solutions_not_exposed(client, admin):
     admin.post("/api/admin/kids/constellation/complete")
     admin.post("/api/admin/kids/machine/complete")
-    admin.post("/api/admin/kids/cadeaux/complete")
+    admin.post("/api/admin/kids/tournee/complete")
     g = games(client)
     content = g["machine"]["content"]
     assert set(content) == {"title", "instructions", "intro", "total", "eliminated", "order"}
@@ -94,17 +94,44 @@ def test_progressive_hints(client):
     assert len(r["hints"]) == 3  # plafonné au nombre d'indices configurés
 
 
-def test_cadeaux_rounds(client):
+def test_tournee_flight_checked_against_level(client):
     attempt(client, "constellation", {"cells": STARS})
     solve_machine(client)
-    wrong = dict(GIFTS["color"], g1="vert")
-    assert attempt(client, "cadeaux", {"round": 0, "placement": wrong}).json()["correct"] is False
-    r = attempt(client, "cadeaux", {"round": 0, "placement": GIFTS["color"]}).json()
-    assert r["correct"] and r["step"] == 1 and not r["completed"]
-    assert attempt(client, "cadeaux", {"round": 0, "placement": GIFTS["color"]}).status_code == 409
-    attempt(client, "cadeaux", {"round": 1, "placement": GIFTS["size"]})
-    r = attempt(client, "cadeaux", {"round": 2, "placement": GIFTS["symbol"]}).json()
-    assert r["completed"] and r["reward"]["digit"] == 2
+    content = games(client)["tournee"]["content"]
+    assert content["level"] == "normal" and content["settings"]["duration"] <= 120
+    lives = TOURNEE.levels["normal"].lives
+    crashed = flight(finished=False, hits=lives, seconds=40, progress=0.45)
+    assert attempt(client, "tournee", crashed).json()["correct"] is False
+    assert attempt(client, "tournee", flight(hits=lives)).json()["correct"] is False  # trop de chocs
+    assert attempt(client, "tournee", flight(seconds=10)).json()["correct"] is False  # vol trop court
+    assert attempt(client, "tournee", flight(level="inconnu")).status_code == 422
+    r = attempt(client, "tournee", flight(hits=lives - 1)).json()
+    assert r["correct"] and r["completed"] and r["reward"]["digit"] == 2
+    assert len(r["hints"]) == 1  # 3 vols manqués : un indice
+
+
+def test_tournee_difficulty_set_by_admin(admin):
+    admin.post("/api/admin/kids/constellation/complete")
+    admin.post("/api/admin/kids/machine/complete")
+    assert admin.post("/api/admin/kids/tournee/difficulty", json={"level": "facile"}).json()["changed"] is True
+    assert admin.post("/api/admin/kids/tournee/difficulty", json={"level": "facile"}).json()["changed"] is False
+    assert admin.post("/api/admin/kids/tournee/difficulty", json={"level": "absent"}).status_code == 404
+    content = games(admin)["tournee"]["content"]
+    assert content["level"] == "facile" and content["settings"] == TOURNEE.levels["facile"].model_dump()
+    # le vol est jugé selon le niveau effectivement joué
+    attempt(admin, "tournee", flight(level="facile", finished=False, hits=2, progress=0.5, seconds=20))
+    stats = {g["id"]: g for g in admin.get("/api/admin/state").json()["kids"]["games"]}["tournee"]
+    assert stats["difficulty"]["current"] == "facile"
+    assert [lv["id"] for lv in stats["difficulty"]["levels"]] == ["facile", "normal", "difficile"]
+    last = {"level": "facile", "finished": False, "hits": 2, "progress": 0.5, "gifts": 3}
+    assert stats["difficulty"]["last_run"] == last
+    # « Recommencer » efface le dernier vol mais garde le niveau choisi
+    admin.post("/api/admin/kids/tournee/reset")
+    stats = {g["id"]: g for g in admin.get("/api/admin/state").json()["kids"]["games"]}["tournee"]
+    assert stats["difficulty"]["current"] == "facile" and stats["difficulty"]["last_run"] is None
+    admin.cookies.clear()
+    assert "difficulty" not in games(admin)["tournee"]
+    assert admin.post("/api/admin/kids/tournee/difficulty", json={"level": "facile"}).status_code == 401
 
 
 def test_invalid_answer_shape(client):
@@ -210,7 +237,7 @@ def test_machine_admin_unlock(admin):
     admin.post("/api/admin/kids/machine/complete")
     g = games(admin)
     assert g["machine"]["status"] == "completed" and g["machine"]["reward"]["symbol"] == "⚙️"
-    assert g["cadeaux"]["status"] == "available"
+    assert g["tournee"]["status"] == "available"
 
 def test_draw_service_is_seedable():
     from app.models import KidsProgress

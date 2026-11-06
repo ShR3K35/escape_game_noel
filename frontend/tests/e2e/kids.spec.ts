@@ -4,11 +4,6 @@ import { loginAdmin, resetGame } from "./helpers";
 
 // Solutions de config/game.yaml
 const STARS = ["0,2", "1,0", "2,3", "3,1", "4,3", "5,0"];
-const GIFTS = [
-  { g1: "rouge", g2: "vert", g3: "bleu", g4: "rouge", g5: "vert", g6: "bleu" },
-  { g1: "grand", g2: "petit", g3: "grand", g4: "petit", g5: "grand", g6: "petit" },
-  { g1: "etoile", g2: "sapin", g3: "cloche", g4: "sapin", g5: "cloche", g6: "etoile" },
-];
 
 test.beforeEach(async ({ request }) => resetGame(request));
 test.use({ viewport: { width: 1180, height: 820 }, hasTouch: true });
@@ -64,17 +59,21 @@ test("les lutins terminent les quatre mini-jeux", async ({ page, request }) => {
   await expect(page.getByTestId("machine-chest")).toContainText("7");
   await closeCelebration(page);
 
-  // 3. Cadeaux : trois manches
-  await openGame(page, "cadeaux");
-  for (const [i, round] of GIFTS.entries()) {
-    for (const [gift, bin] of Object.entries(round)) {
-      await page.locator(`[data-gift="${gift}"]`).first().click();
-      await page.locator(`[data-bin="${bin}"]`).click();
-    }
-    await page.getByRole("button", { name: "✨ Vérifier" }).click();
-    if (i < GIFTS.length - 1) await expect(page.getByText("Bravo, manche réussie !")).toBeVisible();
-  }
-  await closeCelebration(page);
+  // 3. Tournée du traîneau : le vol démarre (le jouer en entier prendrait 90 s), puis le MJ change le niveau
+  //    et débloque l'étape à distance.
+  await openGame(page, "tournee");
+  await expect(page.getByTestId("tournee-lives")).toContainText("4 vies");
+  await page.getByRole("button", { name: /C'est parti/ }).click();
+  await expect(page.getByTestId("tournee")).toHaveAttribute("data-phase", "playing", { timeout: 5000 });
+  await page.getByTestId("tournee-field").click({ position: { x: 300, y: 30 } }); // couloir du haut
+  await page.getByLabel("Pause").click();
+  await expect(page.getByRole("button", { name: /Reprendre/ })).toBeVisible();
+  expect((await request.post("/api/admin/kids/tournee/difficulty", { data: { level: "facile" } })).ok()).toBeTruthy();
+  await page.getByRole("button", { name: "← Carte" }).click();
+  await openGame(page, "tournee");
+  await expect(page.getByTestId("tournee-lives")).toContainText("5 vies"); // niveau facile appliqué
+  expect((await request.post("/api/admin/kids/tournee/complete")).ok()).toBeTruthy();
+  await expect(page.getByTestId("kids-map")).toBeVisible();
 
   // 4. Code du traîneau
   await openGame(page, "code");

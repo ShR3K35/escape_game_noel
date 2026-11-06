@@ -12,7 +12,7 @@ def test_public_state_exposes_progress_without_solutions(client):
     state = client.get("/api/public/state").json()
     assert state["tv"]["show_progress"] is True
     games = state["kids_games"]
-    assert [g["id"] for g in games] == ["constellation", "machine", "cadeaux", "code"]
+    assert [g["id"] for g in games] == ["constellation", "machine", "tournee", "code"]
     assert set(games[0]) == {"id", "title", "status"}
     assert games[0]["status"] == "available"
 
@@ -69,9 +69,27 @@ def test_migration_traces_to_machine(tmp_path, make_client):
                          " values (?, 1, 0, 3, 2, 0)", (gid,))
     c = make_client()
     games = {g["id"]: g for g in c.get("/api/kids/state").json()["games"]}
-    assert list(games) == ["constellation", "machine", "cadeaux", "code"]
+    assert list(games) == ["constellation", "machine", "tournee", "code"]
     assert games["machine"]["status"] == "completed"
-    assert games["cadeaux"]["status"] == "available"
+    assert games["tournee"]["status"] == "available"
     with sqlite3.connect(db) as conn:
         assert conn.execute("select count(*) from kids_progress where game_id = 'traces'").fetchone() == (0,)
         assert conn.execute("select data from kids_progress where game_id = 'machine'").fetchone()[0] is not None
+
+
+def test_migration_cadeaux_to_tournee(tmp_path, make_client):
+    """Base en 0004 avec l'ancien jeu « cadeaux » réussi : reprise en « tournee »."""
+    db = tmp_path / "data" / "noel2026.db"
+    db.parent.mkdir(parents=True)
+    cfg = Config(str(BACKEND_DIR / "alembic.ini"))
+    cfg.set_main_option("script_location", str(BACKEND_DIR / "alembic"))
+    cfg.set_main_option("sqlalchemy.url", f"sqlite:///{db}")
+    command.upgrade(cfg, "0004")
+    with sqlite3.connect(db) as conn:
+        conn.execute("insert into kids_progress (game_id, completed, completed_by_admin, attempts, failures, step)"
+                     " values ('cadeaux', 1, 0, 4, 1, 3)")
+    c = make_client()
+    games = {g["id"]: g for g in c.get("/api/kids/state").json()["games"]}
+    assert games["tournee"]["status"] == "completed" and games["tournee"]["reward"]["digit"] == 2
+    with sqlite3.connect(db) as conn:
+        assert conn.execute("select count(*) from kids_progress where game_id = 'cadeaux'").fetchone() == (0,)

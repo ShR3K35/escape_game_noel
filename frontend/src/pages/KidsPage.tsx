@@ -1,15 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 
 import { Confetti, Snowfall } from "../components/Ambient";
-import { CadeauxGame } from "../games/CadeauxGame";
 import { CodeGame } from "../games/CodeGame";
 import { ConstellationGame } from "../games/ConstellationGame";
 import { MachineGame } from "../games/MachineGame";
+import { TourneeGame } from "../games/TourneeGame";
 import { setSoundEnabled, sfx, soundEnabled } from "../games/sounds";
 import { useLiveChannel } from "../hooks/useLiveChannel";
 import { api } from "../services/api";
 import type {
-  CadeauxContent,
   CodeContent,
   ConstellationContent,
   KidsGame,
@@ -17,9 +16,10 @@ import type {
   KidsState,
   MachineContent,
   Reward,
+  TourneeContent,
 } from "../services/types";
 
-const ICONS: Record<KidsGameId, string> = { constellation: "✨", machine: "⚙️", cadeaux: "🎁", code: "🛷" };
+const ICONS: Record<KidsGameId, string> = { constellation: "✨", machine: "⚙️", tournee: "🎅", code: "🛷" };
 
 function RewardBar({ games }: { games: KidsGame[] }) {
   return (
@@ -166,13 +166,13 @@ export default function KidsPage() {
   const submit = async (answer: unknown) => {
     if (!open) throw new Error("aucun jeu");
     setError(null);
-    // La machine joue ses propres sons (grelots, « pouet ») pendant ses animations.
-    const ownSounds = open.id === "machine";
+    // La machine et le traîneau jouent leurs propres sons (grelots, « pouet », chocs) pendant leurs animations.
+    const ownSounds = open.id === "machine" || open.id === "tournee";
     inFlight.current = true;
     try {
       const r = await api.attempt(open.id, answer);
       if (r.correct && r.completed) {
-        const delay = ownSounds ? 1600 : 0;
+        const delay = open.id === "machine" ? 1600 : 0;
         if (delay) setTimeout(() => sfx.fanfare(), delay);
         else sfx.fanfare();
         setCelebrate({ id: open.id, title: open.title, reward: r.reward ?? null, at: Date.now() + delay });
@@ -204,8 +204,8 @@ export default function KidsPage() {
         return <ConstellationGame {...props} game={g as KidsGame & { content: ConstellationContent }} />;
       case "machine":
         return <MachineGame {...props} game={g as KidsGame & { content: MachineContent }} />;
-      case "cadeaux":
-        return <CadeauxGame {...props} game={g as KidsGame & { content: CadeauxContent }} />;
+      case "tournee":
+        return <TourneeGame {...props} game={g as KidsGame & { content: TourneeContent }} />;
       case "code":
         return <CodeGame {...props} game={g as KidsGame & { content: CodeContent }} rewards={rewards} />;
     }
@@ -253,7 +253,7 @@ export default function KidsPage() {
                 {ICONS[open.id]} {open.title}
               </h1>
             </div>
-            {open.content && "instructions" in open.content && open.id !== "machine" && (
+            {open.content && "instructions" in open.content && open.id !== "machine" && open.id !== "tournee" && (
               <p className="mb-3 text-center text-xl text-encre/80">{open.content.instructions}</p>
             )}
             {renderGame(open)}

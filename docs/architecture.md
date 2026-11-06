@@ -32,9 +32,9 @@ vers uvicorn `--reload` (port 8000).
 | `core/config.py` | paramètres techniques (variables d'environnement) |
 | `core/game_config.py` | schéma Pydantic de `config/game.yaml`, validé au démarrage (références croisées, horaires, fichiers, calcul de chaque question de la machine à cadeaux : +, -, × uniquement) |
 | `core/security.py` | hash scrypt, jeton de session HMAC, limitation des tentatives de connexion |
-| `models/` | tables SQLAlchemy, migrations Alembic appliquées automatiquement au démarrage (0003 : la machine à cadeaux reprend la ligne de l'ancien jeu des traces) |
+| `models/` | tables SQLAlchemy, migrations Alembic appliquées automatiquement au démarrage (0003 : la machine à cadeaux reprend la ligne de l'ancien jeu des traces ; 0005 : la tournée du traîneau reprend celle des cadeaux mélangés) |
 | `services/game.py` | machine à états de la partie et des équipes, TV (vidéos, messages, ambiance) |
-| `services/kids.py` | mini-jeux : progression séquentielle, vérification des réponses côté serveur, indices, tirage des commandes de la machine à cadeaux (conservé en base) |
+| `services/kids.py` | mini-jeux : progression séquentielle, vérification des réponses côté serveur, indices, tirage des commandes de la machine à cadeaux (conservé en base), niveau de difficulté de la tournée du traîneau choisi par le MJ |
 | `services/schedule.py` | planning de la soirée (relatif au démarrage ou heure fixe, accélération démo) |
 | `services/container.py` | transactions, idempotence, vues par écran, sauvegarde |
 | `services/realtime.py` | diffusion WebSocket des instantanés d'état |

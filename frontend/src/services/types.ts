@@ -1,6 +1,6 @@
 export type Phase = "PREPARATION" | "INTRO" | "ENQUETE" | "FINALE" | "VICTOIRE" | "SECOURS" | "FIN";
 export type TeamStatus = "NON_COMMENCE" | "EN_COURS" | "VALIDEE";
-export type KidsGameId = "constellation" | "machine" | "cadeaux" | "code";
+export type KidsGameId = "constellation" | "machine" | "tournee" | "code";
 
 export interface VideoInfo {
   id: string;
@@ -88,19 +88,32 @@ export interface MachineContent {
   order: { text: string; choices: number[]; level: number };
 }
 
-export type GiftColor = "rouge" | "vert" | "bleu";
-export interface Gift {
-  id: string;
-  color: GiftColor;
-  size: "petit" | "grand";
-  symbol: "etoile" | "sapin" | "cloche";
+/** Réglages d'un niveau de « La tournée du traîneau » (voir config/game.yaml). */
+export interface TourneeSettings {
+  label: string;
+  duration: number;
+  lives: number;
+  speed_start: number;
+  speed_end: number;
+  gap_start: number;
+  gap_end: number;
+  double_chance: number;
+  gifts: boolean;
 }
 
-export interface CadeauxContent {
+export interface TourneeContent {
   title: string;
   instructions: string;
-  gifts: Gift[];
-  rounds: { rule: "color" | "size" | "symbol"; instructions: string; bins: { value: string; label: string }[] }[];
+  level: string;
+  settings: TourneeSettings;
+}
+
+export interface TourneeRun {
+  level: string;
+  finished: boolean;
+  hits: number;
+  progress: number;
+  gifts: number;
 }
 
 export interface CodeContent {
@@ -117,13 +130,19 @@ export interface KidsGame {
   step: number;
   hints: string[];
   reward: Reward | null;
-  content: ConstellationContent | MachineContent | CadeauxContent | CodeContent | null;
+  content: ConstellationContent | MachineContent | TourneeContent | CodeContent | null;
   attempts?: number;
   failures?: number;
   completed_by_admin?: boolean;
   completed_at?: string | null;
   /** Admin uniquement : commande en cours de la machine à cadeaux, avec sa réponse. */
   current_order?: { number: number; total: number; text: string; calc: string; answer: number };
+  /** Admin uniquement : niveau de la tournée du traîneau et dernier vol. */
+  difficulty?: {
+    current: string;
+    last_run: TourneeRun | null;
+    levels: { id: string; label: string; duration: number; lives: number }[];
+  };
 }
 
 export interface KidsView {

@@ -1,5 +1,5 @@
 import { api } from "../../services/api";
-import type { AdminState } from "../../services/types";
+import type { AdminState, KidsGame } from "../../services/types";
 import { ActionButton } from "../ui/ActionButton";
 import { Card, Pill } from "../ui/Card";
 
@@ -8,6 +8,43 @@ const STATUS = {
   available: { label: "En cours", tone: "warn" },
   completed: { label: "Réussi", tone: "ok" },
 } as const;
+
+type Difficulty = NonNullable<KidsGame["difficulty"]>;
+
+/** Niveau de « La tournée du traîneau » : appliqué au prochain vol sur la tablette. */
+function DifficultyPicker({ difficulty }: { difficulty: Difficulty }) {
+  const last = difficulty.last_run;
+  const label = (id: string) => difficulty.levels.find((l) => l.id === id)?.label ?? id;
+  return (
+    <div className="mt-2 rounded bg-black/30 p-2" data-testid="admin-tournee-difficulty">
+      <p className="text-xs font-bold text-parchemin-200/90">Difficulté (appliquée au prochain vol) :</p>
+      <div className="mt-1 grid gap-2" style={{ gridTemplateColumns: `repeat(${difficulty.levels.length}, minmax(0, 1fr))` }}>
+        {difficulty.levels.map((l) => (
+          <ActionButton
+            key={l.id}
+            variant={l.id === difficulty.current ? "green" : undefined}
+            disabled={l.id === difficulty.current}
+            onAction={() => api.kidsDifficulty(l.id)}
+            success={`Tournée du traîneau : niveau ${l.label}`}
+            className={l.id === difficulty.current ? "ring-2 ring-or-400 disabled:opacity-100" : ""}
+          >
+            {l.id === difficulty.current ? "✓ " : ""}
+            {l.label}
+            <span className="block text-[11px] font-normal opacity-80">
+              {l.duration} s · {l.lives} vies
+            </span>
+          </ActionButton>
+        ))}
+      </div>
+      {last && (
+        <p className="mt-1 text-xs text-parchemin-200/80" data-testid="admin-tournee-last">
+          Dernier vol ({label(last.level)}) : {last.finished ? "arrivé" : `${Math.round(last.progress * 100)} % du parcours`} ·{" "}
+          {last.hits} choc(s) · {last.gifts} cadeau(x)
+        </p>
+      )}
+    </div>
+  );
+}
 
 export function KidsPanel({ state }: { state: AdminState }) {
   const kids = state.kids;
@@ -29,7 +66,6 @@ export function KidsPanel({ state }: { state: AdminState }) {
               </div>
               <p className="mt-1 text-xs text-parchemin-200/70">
                 {g.attempts ?? 0} essai(s) · {g.failures ?? 0} raté(s) · {g.hints.length} indice(s) affiché(s)
-                {g.id === "cadeaux" && ` · manche ${Math.min(g.step + 1, 3)}/3`}
                 {g.completed_by_admin && " · débloqué par le MJ"}
               </p>
               {g.current_order && g.status === "available" && (
@@ -41,6 +77,7 @@ export function KidsPanel({ state }: { state: AdminState }) {
                   </span>
                 </p>
               )}
+              {g.difficulty && <DifficultyPicker difficulty={g.difficulty} />}
               <div className="mt-2 grid grid-cols-2 gap-2">
                 <ActionButton
                   variant="green"

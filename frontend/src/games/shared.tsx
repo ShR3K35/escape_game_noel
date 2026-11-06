@@ -62,5 +62,3 @@ export const COLOR_HEX: Record<string, string> = {
   bleu: "#1e5bd8",
   or: "#d4a017",
 };
-
-export const SYMBOLS: Record<string, string> = { etoile: "⭐", sapin: "🎄", cloche: "🔔" };

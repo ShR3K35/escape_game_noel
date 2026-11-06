@@ -19,9 +19,15 @@ class MachineAnswer(BaseModel):
     answer: int = Field(ge=-100_000, le=100_000)
 
 
-class CadeauxAnswer(BaseModel):
-    round: int = Field(ge=0, le=20)
-    placement: dict[str, str] = Field(max_length=40)
+class TourneeAnswer(BaseModel):
+    """Bilan d'un vol : le jeu tourne sur la tablette, le serveur vérifie la cohérence avec le niveau joué."""
+
+    level: str = Field(pattern=r"^[a-z0-9_-]{1,20}$")
+    finished: bool             # le traîneau est arrivé au bout du parcours
+    hits: int = Field(ge=0, le=99)
+    seconds: float = Field(ge=0, le=600)
+    progress: float = Field(ge=0, le=1)
+    gifts: int = Field(0, ge=0, le=999)
 
 
 class CodeAnswer(BaseModel):
@@ -29,7 +35,7 @@ class CodeAnswer(BaseModel):
 
 
 ANSWER_MODELS = {"constellation": ConstellationAnswer, "machine": MachineAnswer,
-                 "cadeaux": CadeauxAnswer, "code": CodeAnswer}
+                 "tournee": TourneeAnswer, "code": CodeAnswer}
 
 
 class KidsService:
@@ -79,6 +85,26 @@ class KidsService:
     def _misses(self, row: KidsProgress) -> list[int]:
         return list((row.data or {}).get("misses", []))
 
+    # ------------------------------------------------- tournée du traîneau
+    def difficulty(self, row: KidsProgress) -> str:
+        """Niveau choisi par le maître du jeu (conservé en base), sinon celui de `game.yaml`."""
+        t = self.cfg.kids.tournee
+        chosen = (row.data or {}).get("difficulty")
+        return chosen if chosen in t.levels else t.difficulty
+
+    def set_difficulty(self, s: Session, level: str) -> dict:
+        t = self.cfg.kids.tournee
+        if level not in t.levels:
+            raise GameError(f"niveau inconnu : {level}", 404)
+        row = s.get(KidsProgress, "tournee")
+        if self.difficulty(row) == level:
+            return {"changed": False}
+        row.data = {**(row.data or {}), "difficulty": level}
+        row.updated_at = self.clock()
+        log_event(s, self.clock, "kids_difficulty",
+                  f"Maître du jeu : « {t.title} » en niveau {t.levels[level].label}", {"level": level}, "admin")
+        return {"changed": True}
+
     def _game_cfg(self, gid: str):
         return getattr(self.cfg.kids, gid)
 
@@ -109,9 +135,9 @@ class KidsService:
         if gid == "constellation":
             return base | {"cols": c.cols, "rows": c.rows, "stars": [list(x) for x in c.stars],
                            "memorize_seconds": c.memorize_seconds}
-        if gid == "cadeaux":
-            return base | {"gifts": [g.model_dump() for g in c.gifts],
-                           "rounds": [r.model_dump() for r in c.rounds]}
+        if gid == "tournee":
+            level = self.difficulty(row)
+            return base | {"level": level, "settings": c.levels[level].model_dump()}
         return base | {"riddle": c.riddle, "length": len(c.code)}
 
     def view(self, s: Session, include_stats: bool = False) -> dict:
@@ -132,6 +158,11 @@ class KidsService:
                     q = self._machine_order(row)
                     entry["current_order"] = {"number": row.step + 1, "total": c.total_orders,
                                               "text": q.text, "calc": q.calc, "answer": q.answer}
+                if gid == "tournee":
+                    entry["difficulty"] = {
+                        "current": self.difficulty(row), "last_run": (row.data or {}).get("last"),
+                        "levels": [{"id": k, "label": v.label, "duration": v.duration, "lives": v.lives}
+                                   for k, v in c.levels.items()]}
             games.append(entry)
         done = all(r.completed for r in rows.values())
         return {"games": games, "completed_count": sum(r.completed for r in rows.values()),
@@ -148,12 +179,15 @@ class KidsService:
             if answer.order != row.step:
                 raise GameError("cette commande est déjà terminée", 409)
             return answer.answer == self._machine_order(row).answer
-        if gid == "cadeaux":
-            if answer.round != row.step:
-                raise GameError("cette manche est déjà terminée", 409)
-            rule = c.rounds[row.step].rule
-            expected = {g.id: getattr(g, rule) for g in c.gifts}
-            return answer.placement == expected
+        if gid == "tournee":
+            level = c.levels.get(answer.level)
+            if level is None:
+                raise GameError(f"niveau inconnu : {answer.level}", 422)
+            row.data = {**(row.data or {}), "last": {
+                "level": answer.level, "finished": answer.finished, "hits": answer.hits,
+                "progress": round(answer.progress, 2), "gifts": answer.gifts}}
+            # Tolérance de 3 s : le chronomètre de la tablette s'arrête pendant les pauses.
+            return answer.finished and answer.hits < level.lives and answer.seconds >= level.duration - 3
         return answer.code == c.code
 
     def attempt(self, s: Session, gid: str, raw_answer: dict) -> dict:
@@ -176,10 +210,7 @@ class KidsService:
         row.updated_at = self.clock()
         title = self._game_cfg(gid).title
         if correct:
-            if gid == "cadeaux":
-                row.step += 1
-                finished = row.step >= len(self.cfg.kids.cadeaux.rounds)
-            elif gid == "machine":
+            if gid == "machine":
                 row.step += 1
                 row.data = {**row.data, "misses": []}
                 finished = row.step >= self.cfg.kids.machine.total_orders
@@ -190,15 +221,17 @@ class KidsService:
                 log_event(s, self.clock, "kids_completed", f"Lutins : « {title} » réussi !",
                           {"game": gid, "attempts": row.attempts}, "kids")
             else:
-                label = "commande" if gid == "machine" else "manche"
-                log_event(s, self.clock, "kids_step", f"Lutins : « {title} » {label} {row.step} réussie",
+                log_event(s, self.clock, "kids_step", f"Lutins : « {title} » commande {row.step} réussie",
                           {"game": gid, "step": row.step}, "kids")
         else:
             row.failures += 1
             if gid == "machine" and answer.answer in self._machine_order(row).choices \
                     and answer.answer not in self._misses(row):
                 row.data = {**row.data, "misses": [*self._misses(row), answer.answer]}
-            log_event(s, self.clock, "kids_failed", f"Lutins : essai manqué sur « {title} »",
+            detail = ""
+            if gid == "tournee":
+                detail = f" ({round(answer.progress * 100)} % du parcours, {answer.hits} choc(s))"
+            log_event(s, self.clock, "kids_failed", f"Lutins : essai manqué sur « {title} »{detail}",
                       {"game": gid, "failures": row.failures}, "kids")
         reward = self._game_cfg(gid).reward.model_dump() if row.completed and gid != "code" else None
         result = {"correct": correct, "completed": row.completed, "step": row.step,
@@ -212,8 +245,6 @@ class KidsService:
         row.completed_at = self.clock()
         row.completed_by_admin = by_admin
         row.updated_at = self.clock()
-        if row.game_id == "cadeaux":
-            row.step = len(self.cfg.kids.cadeaux.rounds)
         if row.game_id == "machine":
             row.step = self.cfg.kids.machine.total_orders
             row.data = {**row.data, "misses": []}
@@ -242,6 +273,8 @@ class KidsService:
         row.updated_at = self.clock()
         if gid == "machine":  # nouvelles commandes à chaque réinitialisation
             self._new_draw(row)
+        if gid == "tournee":  # le niveau choisi par le maître du jeu est conservé
+            row.data = {"difficulty": row.data["difficulty"]} if (row.data or {}).get("difficulty") else None
         if log_it:
             log_event(s, self.clock, "kids_reset", f"Jeu « {self._game_cfg(gid).title} » réinitialisé",
                       {"game": gid}, source)

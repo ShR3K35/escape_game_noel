@@ -22,7 +22,7 @@ def test_repository_config_is_valid():
 
 def test_sleigh_code_matches_rewards():
     k = load_game_config(REPO_ROOT / "config").kids
-    assert k.code.code == f"{k.machine.reward.digit}{k.constellation.reward.digit}{k.cadeaux.reward.digit}"
+    assert k.code.code == f"{k.machine.reward.digit}{k.constellation.reward.digit}{k.tournee.reward.digit}"
 
 
 @pytest.mark.parametrize("mutate", [
@@ -34,6 +34,8 @@ def test_sleigh_code_matches_rewards():
     lambda d: d["kids"]["machine"]["questions"][0].update(calc="40 / 2"),
     lambda d: d["kids"]["machine"].update(orders_per_level=[20, 3, 2]),
     lambda d: d["kids"]["constellation"]["stars"].append([9, 9]),
+    lambda d: d["kids"]["tournee"]["levels"]["normal"].update(duration=150),  # 2 minutes maximum
+    lambda d: d["kids"]["tournee"].update(difficulty="extreme"),
 ])
 def test_invalid_configs_rejected(mutate):
     data = raw()

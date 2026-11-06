@@ -12,7 +12,7 @@ HHMM = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 SAFE_FILE = re.compile(r"^[A-Za-z0-9_.-]+\.(mp4|webm)$")
 
 PHASES = ("PREPARATION", "INTRO", "ENQUETE", "FINALE", "VICTOIRE", "SECOURS", "FIN")
-KIDS_GAMES = ("constellation", "machine", "cadeaux", "code")
+KIDS_GAMES = ("constellation", "machine", "tournee", "code")
 
 
 def _check_hhmm(value: str) -> str:
@@ -178,39 +178,35 @@ class MachineCfg(BaseModel):
         return self
 
 
-class GiftCfg(BaseModel):
-    id: str
-    color: Literal["rouge", "vert", "bleu"]
-    size: Literal["petit", "grand"]
-    symbol: Literal["etoile", "sapin", "cloche"]
+class TourneeLevelCfg(BaseModel):
+    """Un niveau de difficulté de « La tournée du traîneau » (endless runner à 3 couloirs)."""
+
+    label: str = Field(min_length=1, max_length=30)
+    duration: int = Field(ge=15, le=120)               # durée du vol en secondes : 2 minutes maximum
+    lives: int = Field(ge=1, le=9)                     # chocs autorisés avant de devoir recommencer
+    speed_start: float = Field(ge=0.1, le=1.0)         # vitesse au départ, en largeurs d'écran par seconde
+    speed_end: float = Field(ge=0.1, le=1.0)           # vitesse à l'arrivée (accélération progressive)
+    gap_start: float = Field(ge=0.8, le=6.0)           # secondes entre deux obstacles au départ
+    gap_end: float = Field(ge=0.8, le=6.0)             # … et à l'arrivée
+    double_chance: float = Field(0.0, ge=0.0, le=1.0)  # probabilité qu'un obstacle bloque 2 couloirs sur 3
+    gifts: bool = True                                 # cadeaux bonus à attraper (pour le plaisir, sans effet)
 
 
-class SortBinCfg(BaseModel):
-    value: str
-    label: str
-
-
-class SortRoundCfg(BaseModel):
-    rule: Literal["color", "size", "symbol"]
-    instructions: str
-    bins: list[SortBinCfg]
-
-
-class CadeauxCfg(BaseModel):
+class TourneeCfg(BaseModel):
     title: str
     instructions: str
-    gifts: list[GiftCfg]
-    rounds: list[SortRoundCfg]
+    difficulty: str  # niveau par défaut ; modifiable en direct dans l'onglet Lutins de l'admin
+    levels: dict[str, TourneeLevelCfg] = Field(min_length=1, max_length=6)
     reward: RewardCfg
     hints: list[str] = []
 
     @model_validator(mode="after")
-    def _bins_cover_gifts(self):
-        for rnd in self.rounds:
-            values = {b.value for b in rnd.bins}
-            for g in self.gifts:
-                if getattr(g, rnd.rule) not in values:
-                    raise ValueError(f"le cadeau {g.id} n'a pas de sac pour la règle {rnd.rule}")
+    def _levels(self):
+        for key in self.levels:
+            if not re.match(r"^[a-z0-9_-]{1,20}$", key):
+                raise ValueError(f"identifiant de niveau invalide : {key}")
+        if self.difficulty not in self.levels:
+            raise ValueError(f"difficulté par défaut « {self.difficulty} » absente de levels")
         return self
 
 
@@ -228,7 +224,7 @@ class KidsCfg(BaseModel):
     final_message: str
     constellation: ConstellationCfg
     machine: MachineCfg
-    cadeaux: CadeauxCfg
+    tournee: TourneeCfg
     code: CodeCfg
 
 

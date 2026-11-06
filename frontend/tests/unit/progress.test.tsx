@@ -8,7 +8,7 @@ import type { PublicState } from "../../src/services/types";
 type KidsGames = PublicState["kids_games"];
 
 function state(teams: Record<string, PublicState["teams"][number]["status"]>, kids: KidsGames[number]["status"][], t = "2026-12-24T19:30:00Z"): PublicState {
-  const ids = ["constellation", "machine", "cadeaux", "code"] as const;
+  const ids = ["constellation", "machine", "tournee", "code"] as const;
   return {
     server_time: t,
     title: "x",
@@ -44,7 +44,7 @@ describe("détection des succès", () => {
     const before = state({}, ["completed", "completed", "available", "locked"]);
     const after = state({}, ["completed", "completed", "completed", "completed"]);
     const found = detectSuccesses(before, after);
-    expect(found.map((s) => s.kind === "kids" && [s.id, s.all])).toEqual([["cadeaux", false], ["code", true]]);
+    expect(found.map((s) => s.kind === "kids" && [s.id, s.all])).toEqual([["tournee", false], ["code", true]]);
   });
 
   it("clés uniques même si une équipe est revalidée plus tard", () => {

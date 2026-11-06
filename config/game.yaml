@@ -275,30 +275,36 @@ kids:
           text: "Mère Noël fait 3 plaques de 9 biscuits et 2 plaques de 8 biscuits. Combien de biscuits a-t-elle faits ?",
           hint: "Comptez les biscuits de chaque sorte (3 fois 9, puis 2 fois 8), puis ajoutez." }
 
-  cadeaux:
-    title: "Les cadeaux mélangés"
-    instructions: "Oh non, les cadeaux sont mélangés ! Rangez chaque cadeau dans le bon sac."
-    gifts:
-      - { id: g1, color: rouge, size: grand, symbol: etoile }
-      - { id: g2, color: vert, size: petit, symbol: sapin }
-      - { id: g3, color: bleu, size: grand, symbol: cloche }
-      - { id: g4, color: rouge, size: petit, symbol: sapin }
-      - { id: g5, color: vert, size: grand, symbol: cloche }
-      - { id: g6, color: bleu, size: petit, symbol: etoile }
-    rounds:
-      - rule: color
-        instructions: "Manche 1 : rangez les cadeaux selon leur COULEUR."
-        bins: [{ value: rouge, label: "Sac rouge" }, { value: vert, label: "Sac vert" }, { value: bleu, label: "Sac bleu" }]
-      - rule: size
-        instructions: "Manche 2 : rangez les cadeaux selon leur TAILLE."
-        bins: [{ value: petit, label: "Petits cadeaux" }, { value: grand, label: "Grands cadeaux" }]
-      - rule: symbol
-        instructions: "Manche 3 : rangez les cadeaux selon leur SYMBOLE."
-        bins: [{ value: etoile, label: "Sac étoile" }, { value: sapin, label: "Sac sapin" }, { value: cloche, label: "Sac cloche" }]
-    reward: { symbol: "🎁", label: "le ruban magique", digit: 2 }
+  tournee:
+    title: "La tournée du traîneau"
+    instructions: "Aidez le Père Noël à traverser le village : évitez les cheminées, les clochers et les nuages d'orage !"
+    # ───────────── DIFFICULTÉ ─────────────
+    # Niveau utilisé par défaut. Le maître du jeu peut en changer EN DIRECT dans l'onglet « Lutins »
+    # de l'admin (boutons Facile / Normal / Difficile) : le choix s'applique au vol suivant.
+    difficulty: normal
+    # Réglages de chaque niveau (on peut les modifier, en ajouter ou en retirer) :
+    #   duration      durée du vol en secondes (120 au maximum = 2 minutes)
+    #   lives         nombre de chocs autorisés (au dernier choc, on recommence le vol)
+    #   speed_start / speed_end   vitesse au départ / à l'arrivée, en largeurs d'écran par seconde
+    #                 (0.25 : un obstacle met 4 s à traverser l'écran ; 0.5 : 2 s)
+    #   gap_start / gap_end       secondes entre deux obstacles au départ / à l'arrivée
+    #   double_chance probabilité (0 à 1) qu'un obstacle bloque 2 couloirs sur 3 (il en reste toujours un libre)
+    #   gifts         cadeaux bonus à attraper (pour le plaisir, sans effet sur la réussite)
+    levels:
+      facile:
+        { label: "Facile", duration: 60, lives: 5, speed_start: 0.22, speed_end: 0.30,
+          gap_start: 2.6, gap_end: 1.9, double_chance: 0.0, gifts: true }
+      normal:
+        { label: "Normal", duration: 90, lives: 4, speed_start: 0.26, speed_end: 0.38,
+          gap_start: 2.2, gap_end: 1.5, double_chance: 0.25, gifts: true }
+      difficile:
+        { label: "Difficile", duration: 120, lives: 3, speed_start: 0.30, speed_end: 0.48,
+          gap_start: 1.8, gap_end: 1.15, double_chance: 0.45, gifts: true }
+    reward: { symbol: "🎁", label: "la hotte du Père Noël", digit: 2 }
     hints:
-      - "Regardez seulement ce que demande la manche, pas le reste !"
-      - "Chaque sac doit contenir au moins un cadeau."
+      - "Touchez le ciel à l'endroit où le traîneau doit aller : en haut, au milieu ou en bas."
+      - "Regardez loin devant, à droite : les obstacles arrivent de là. Il y a toujours un passage libre !"
+      - "Pas besoin d'attraper les cadeaux : le plus important, c'est d'éviter les obstacles."
 
   code:
     title: "Le code du traîneau"

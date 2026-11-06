@@ -1,11 +1,11 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { CadeauxGame } from "../../src/games/CadeauxGame";
 import { CodeGame } from "../../src/games/CodeGame";
 import { ConstellationGame } from "../../src/games/ConstellationGame";
 import { MachineGame } from "../../src/games/MachineGame";
-import type { CadeauxContent, CodeContent, ConstellationContent, KidsGame, MachineContent } from "../../src/services/types";
+import { TourneeGame } from "../../src/games/TourneeGame";
+import type { CodeContent, ConstellationContent, KidsGame, MachineContent, TourneeContent } from "../../src/services/types";
 
 const ok = { correct: true, completed: true, step: 0, hints: [] };
 const ko = { correct: false, completed: false, step: 0, hints: ["Comptez !"] };
@@ -99,36 +99,29 @@ describe("Machine à cadeaux", () => {
   });
 });
 
-describe("Cadeaux", () => {
-  const content: CadeauxContent = {
-    title: "c", instructions: "i",
-    gifts: [{ id: "g1", color: "rouge", size: "grand", symbol: "etoile" }, { id: "g2", color: "bleu", size: "petit", symbol: "sapin" }],
-    rounds: [{ rule: "color", instructions: "Couleur", bins: [{ value: "rouge", label: "Sac rouge" }, { value: "bleu", label: "Sac bleu" }] }],
+describe("Tournée du traîneau", () => {
+  const content: TourneeContent = {
+    title: "t", instructions: "Évitez les cheminées !", level: "facile",
+    settings: { label: "Facile", duration: 60, lives: 5, speed_start: 0.22, speed_end: 0.3, gap_start: 2.6, gap_end: 1.9, double_chance: 0, gifts: true },
   };
 
-  it("range chaque cadeau puis vérifie la manche", async () => {
-    const submit = vi.fn().mockResolvedValue(ok);
-    const { container } = render(<CadeauxGame game={game("cadeaux", content)} submit={submit} />);
-    const click = (sel: string) => fireEvent.click(container.querySelector(sel)!);
-    expect(screen.getByText("✨ Vérifier")).toBeDisabled();
-    click('[data-gift="g1"]');
-    click('[data-bin="rouge"]');
-    click('[data-gift="g2"]');
-    click('[data-bin="bleu"]');
-    await act(async () => fireEvent.click(screen.getByText("✨ Vérifier")));
-    expect(submit).toHaveBeenCalledWith({ round: 0, placement: { g1: "rouge", g2: "bleu" } });
+  it("écran d'accueil avec le niveau, puis décompte au départ", () => {
+    vi.useFakeTimers();
+    render(<TourneeGame game={game("tournee", content)} submit={vi.fn()} />);
+    expect(screen.getByText("Évitez les cheminées !")).toBeInTheDocument();
+    expect(screen.getByTestId("tournee-lives")).toHaveTextContent("5 vies");
+    expect(screen.getByText(/60 s · Facile/)).toBeInTheDocument();
+    fireEvent.click(screen.getByText(/C'est parti/));
+    expect(screen.getByTestId("tournee")).toHaveAttribute("data-phase", "countdown");
+    for (let i = 0; i < 3; i++) act(() => vi.advanceTimersByTime(800));
+    expect(screen.getByTestId("tournee")).toHaveAttribute("data-phase", "playing");
+    expect(screen.getByLabelText("Pause")).toBeInTheDocument();
+    vi.useRealTimers();
   });
 
-  it("toucher un cadeau déjà rangé avec un autre cadeau sélectionné ne le retire pas", () => {
-    const { container } = render(<CadeauxGame game={game("cadeaux", content)} submit={vi.fn()} />);
-    const click = (sel: string) => fireEvent.click(container.querySelector(sel)!);
-    click('[data-gift="g1"]');
-    click('[data-bin="rouge"]');
-    click('[data-gift="g2"]');
-    click('[data-bin="rouge"] [data-gift="g1"]'); // le doigt tombe sur g1 dans le sac
-    expect(container.querySelectorAll('[data-bin="rouge"] [data-gift]')).toHaveLength(2);
-    click('[data-bin="rouge"] [data-gift="g1"]'); // sans sélection : retire g1
-    expect(container.querySelectorAll('[data-bin="rouge"] [data-gift]')).toHaveLength(1);
+  it("affiche les indices sur l'écran d'accueil", () => {
+    render(<TourneeGame game={game("tournee", content, { hints: ["Touchez le ciel"] })} submit={vi.fn()} />);
+    expect(screen.getByText(/Touchez le ciel/)).toBeInTheDocument();
   });
 });
 

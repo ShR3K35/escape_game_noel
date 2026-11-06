@@ -47,6 +47,10 @@ class ProgressBody(BaseModel):
     visible: bool
 
 
+class DifficultyBody(BaseModel):
+    level: str = Field(pattern=r"^[a-z0-9_-]{1,20}$")
+
+
 class ScheduleBody(BaseModel):
     at: str | None = Field(None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
     enabled: bool | None = None
@@ -144,6 +148,11 @@ async def progress(body: ProgressBody, request: Request, svc=Depends(services)):
 async def kids_reset_all(body: Confirm, request: Request, svc=Depends(services)):
     _require_confirm(body)
     return await command(request, lambda s: svc.kids.reset_all(s) or {"changed": True})
+
+
+@router.post("/kids/tournee/difficulty")
+async def kids_difficulty(body: DifficultyBody, request: Request, svc=Depends(services)):
+    return await command(request, lambda s: svc.kids.set_difficulty(s, body.level))
 
 
 @router.post("/kids/{game_id}/complete")
