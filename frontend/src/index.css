@@ -52,6 +52,14 @@
   0%, 100% { box-shadow: 0 0 0 0 rgb(221 191 114 / 0.0), 0 10px 30px -10px rgb(0 0 0 / 0.5); }
   50% { box-shadow: 0 0 28px 6px rgb(221 191 114 / 0.55), 0 10px 30px -10px rgb(0 0 0 / 0.5); }
 }
+/* Halo doré qui « respire » sans repeindre : l'ombre est dessinée une fois, seule son opacité est animée
+   (le GPU s'en charge seul ; animer box-shadow repeint la carte à chaque image sur une tablette ancienne). */
+.glow-pulse { position: relative; }
+.glow-pulse::after {
+  content: ""; position: absolute; inset: -4px; border-radius: inherit; pointer-events: none;
+  box-shadow: 0 0 28px 6px rgb(221 191 114 / 0.55);
+  animation: glow-breathe 2.2s ease-in-out infinite; will-change: opacity;
+}
 @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
 @keyframes unroll {
   from { opacity: 0; transform: scaleY(0.2) translateY(-20px); filter: blur(4px); }

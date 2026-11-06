@@ -123,7 +123,7 @@ function Celebration({ title, reward, chest, onClose }: {
 
 function FinalScreen({ title, message, games }: { title: string; message: string; games: KidsGame[] }) {
   return (
-    <div className="relative flex min-h-[70vh] flex-col items-center justify-center overflow-hidden text-center" data-testid="kids-final">
+    <div className="relative flex flex-1 flex-col items-center justify-center overflow-hidden text-center" data-testid="kids-final">
       <Confetti count={60} />
       <div className="pointer-events-none absolute left-0 top-10 text-7xl" style={{ animation: "sleigh 7s linear infinite" }}>
         🛷🦌🦌
@@ -212,9 +212,12 @@ export default function KidsPage() {
   };
 
   return (
-    <div className="relative min-h-dvh select-none overflow-x-hidden bg-[linear-gradient(180deg,var(--color-sapin-800),var(--color-sapin-950))] font-sans">
-      <Snowfall count={35} />
-      <header className="relative z-10 flex flex-wrap items-center justify-between gap-3 px-4 py-3 short:py-1">
+    // Tout tient dans l'écran (tablette en paysage) : en-tête fixe, puis une zone qui prend le reste de la hauteur
+    // et centre son contenu. Seul le corps d'un jeu défile, en dernier recours.
+    <div className="relative flex h-dvh select-none flex-col overflow-hidden bg-[linear-gradient(180deg,var(--color-sapin-800),var(--color-sapin-950))] font-sans">
+      {/* Les flocons de la page ne tombent que sur la carte : en jeu, ils coûteraient des images au jeu lui-même. */}
+      {!open && <Snowfall count={35} />}
+      <header className="relative z-10 flex shrink-0 flex-wrap items-center justify-between gap-3 px-4 py-3 short:py-1">
         <button
           onClick={() => setOpenId(null)}
           className="flex items-center gap-2 text-left"
@@ -239,24 +242,30 @@ export default function KidsPage() {
         </div>
       </header>
 
-      <main className="relative z-10 px-4 pb-10 short:pb-2">
-        {error && <p className="mx-auto mb-3 max-w-2xl rounded-2xl bg-bordeaux-700 p-3 text-center text-lg font-bold text-white">{error}</p>}
-        {!data && <p className="mt-20 text-center text-2xl text-white/80">Le traîneau arrive…</p>}
+      <main className="relative z-10 flex min-h-0 flex-1 flex-col px-4 pb-4 short:pb-2">
+        {error && <p className="mx-auto mb-3 max-w-2xl shrink-0 rounded-2xl bg-bordeaux-700 p-3 text-center text-lg font-bold text-white">{error}</p>}
+        {!data && <p className="m-auto text-center text-2xl text-white/80">Le traîneau arrive…</p>}
 
         {data && open && (
-          <div className="parchment mx-auto max-w-5xl rounded-[2rem] p-4 shadow-2xl sm:p-6 short:p-3" data-testid={`game-${open.id}`}>
-            <div className="mb-3 flex items-center gap-3 short:mb-1">
+          <div
+            className="parchment mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col rounded-[2rem] p-4 shadow-2xl sm:p-6 short:p-3"
+            data-testid={`game-${open.id}`}
+          >
+            <div className="mb-3 flex shrink-0 items-center gap-3 short:mb-1">
               <button onClick={() => setOpenId(null)} className="rounded-2xl bg-bois-700 px-4 py-3 text-lg font-black text-white short:py-2">
                 ← Carte
               </button>
-              <h1 className="flex-1 text-3xl font-black text-bordeaux-800">
+              <h1 className="flex-1 text-3xl font-black text-bordeaux-800 short:text-2xl">
                 {ICONS[open.id]} {open.title}
               </h1>
             </div>
-            {open.content && "instructions" in open.content && open.id !== "machine" && open.id !== "tournee" && (
-              <p className="mb-3 text-center text-xl text-encre/80">{open.content.instructions}</p>
+            {open.content && "instructions" in open.content && open.id !== "machine" && open.id !== "tournee" && open.id !== "constellation" && (
+              <p className="mb-3 shrink-0 text-center text-xl text-encre/80 short:mb-1 short:text-lg">{open.content.instructions}</p>
             )}
-            {renderGame(open)}
+            {/* Corps du jeu : centré verticalement dans la place restante. */}
+            <div className="flex min-h-0 flex-1 flex-col justify-center overflow-y-auto [container-type:size]" data-testid="game-body">
+              {renderGame(open)}
+            </div>
           </div>
         )}
 
@@ -265,7 +274,7 @@ export default function KidsPage() {
         )}
 
         {data && !open && !data.all_completed && (
-          <div className="mx-auto grid max-w-4xl gap-4 sm:grid-cols-2" data-testid="kids-map">
+          <div className="mx-auto grid w-full max-w-5xl flex-1 gap-4 sm:grid-cols-2 sm:grid-rows-2 short:gap-3" data-testid="kids-map">
             {data.games.map((g, i) => (
               <button
                 key={g.id}
@@ -276,9 +285,9 @@ export default function KidsPage() {
                   sfx.bell();
                   setOpenId(g.id);
                 }}
-                className={`relative flex min-h-44 flex-col items-center justify-center rounded-[2rem] border-4 p-5 text-center shadow-xl transition ${
+                className={`relative flex min-h-36 flex-col items-center justify-center rounded-[2rem] border-4 p-5 text-center shadow-xl transition short:p-3 ${
                   g.status === "available"
-                    ? "animate-glow border-or-400 bg-bordeaux-700 text-white"
+                    ? "glow-pulse border-or-400 bg-bordeaux-700 text-white"
                     : g.status === "completed"
                       ? "border-sapin-500 bg-sapin-700 text-white"
                       : "border-white/20 bg-black/25 text-white/50"

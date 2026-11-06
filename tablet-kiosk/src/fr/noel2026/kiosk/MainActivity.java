@@ -127,6 +127,8 @@ public class MainActivity extends Activity {
     // ---------------------------------------------------------------- WebView
 
     private WebView buildWebView() {
+        // Inspection à distance (chrome://inspect) via USB uniquement : sert à mesurer les performances sur la tablette.
+        WebView.setWebContentsDebuggingEnabled(true);
         WebView view = new WebView(this);
         view.setBackgroundColor(Color.BLACK);
         view.setLongClickable(false);

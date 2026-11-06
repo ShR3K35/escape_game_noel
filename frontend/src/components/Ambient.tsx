@@ -33,7 +33,8 @@ export function Snowfall({ count = 60, className = "" }: { count?: number; class
             width: f.size,
             height: f.size,
             opacity: f.opacity,
-            filter: "blur(0.5px)",
+            // Pas de filter: blur ici : sur un GPU de tablette ancienne, chaque flocon flouté est repeint
+            // à chaque image (6 i/s mesurés sur la Nexus 7 contre ~50 sans).
             animation: `snowfall ${f.duration}s linear ${f.delay}s infinite`,
             ["--drift" as string]: `${f.drift}px`,
           }}

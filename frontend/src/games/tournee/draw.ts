@@ -171,6 +171,7 @@ function hillsSprite(W: number, H: number, color: string, amp: number, k: number
   c.beginPath();
   c.moveTo(0, h);
   for (let x = 0; x <= W; x += 4) c.lineTo(x, yAt(x));
+  c.lineTo(W, yAt(W)); // bord droit exact : sinon une couture apparaît au raccord des tuiles
   c.lineTo(W, h);
   c.closePath();
   c.fillStyle = color;
@@ -192,7 +193,8 @@ export interface Renderer {
 }
 
 export function createRenderer(cv: HTMLCanvasElement): Renderer | null {
-  const ctx2d = cv.getContext("2d");
+  // Canvas opaque : le navigateur n'a pas à mélanger ses pixels avec la page (gain net sur GPU ancien).
+  const ctx2d = cv.getContext("2d", { alpha: false });
   if (!ctx2d) return null;
   const c: Ctx = ctx2d;
   let W = 0;
@@ -206,6 +208,7 @@ export function createRenderer(cv: HTMLCanvasElement): Renderer | null {
   let teamW = 0;
   let teamH = 0;
   let gift: HTMLCanvasElement | null = null;
+  let giftHalo: HTMLCanvasElement | null = null;
   const sprites = new Map<string, HTMLCanvasElement>();
   const flakes: Flake[] = Array.from({ length: 45 }, (_, i) => ({
     x: (i * 0.618) % 1, y: (i * 0.37) % 1, r: 0.6 + ((i * 7) % 5) * 0.35, vy: 0.04 + ((i * 3) % 7) * 0.012, ph: i,
@@ -259,15 +262,30 @@ export function createRenderer(cv: HTMLCanvasElement): Renderer | null {
     sprites.clear();
     sleighImg = deerImg = null;
     gift = null;
+    giftHalo = null;
     void loadSprites().then(() => {
       if (!L) return;
       buildTeam();
       gift = fitted("cadeau", 0.55 * L, 0.55 * L, "center");
+      if (gift) giftHalo = haloSprite(gift.width * 0.75);
     });
   };
 
+  /** Halo doré des cadeaux, dessiné une fois (un dégradé radial par image et par cadeau coûte cher). */
+  const haloSprite = (r: number) => {
+    const [hc, h] = canvas(r * 2, r * 2);
+    if (!h) return null;
+    const g = h.createRadialGradient(r, r, 0, r, r, r);
+    g.addColorStop(0, "rgba(255,225,110,0.55)");
+    g.addColorStop(1, "rgba(255,225,110,0)");
+    h.fillStyle = g;
+    h.fillRect(0, 0, r * 2, r * 2);
+    return hc;
+  };
+
   const tile = (img: HTMLCanvasElement, offset: number, y: number) => {
-    const o = ((offset % W) + W) % W;
+    // Décalage entier : deux tuiles posées à une position fractionnaire laissent un liseré au raccord.
+    const o = Math.round(((offset % W) + W) % W);
     c.drawImage(img, -o, y);
     c.drawImage(img, W - o, y);
   };
@@ -332,12 +350,7 @@ export function createRenderer(cv: HTMLCanvasElement): Renderer | null {
         const bob = Math.sin(now / 250 + b.id) * L * 0.05;
         const gx = b.x * W - L * 0.02;
         const gy = laneCenter(b.lane) * H - gift.height / 2 + bob;
-        const r = gift.width * 0.75;
-        const halo = c.createRadialGradient(gx + gift.width / 2, gy + gift.height / 2, 0, gx + gift.width / 2, gy + gift.height / 2, r);
-        halo.addColorStop(0, "rgba(255,225,110,0.55)");
-        halo.addColorStop(1, "rgba(255,225,110,0)");
-        c.fillStyle = halo;
-        c.fillRect(gx + gift.width / 2 - r, gy + gift.height / 2 - r, r * 2, r * 2);
+        if (giftHalo) c.drawImage(giftHalo, gx + (gift.width - giftHalo.width) / 2, gy + (gift.height - giftHalo.height) / 2);
         c.drawImage(gift, gx, gy);
       }
     }
@@ -380,16 +393,20 @@ export function createRenderer(cv: HTMLCanvasElement): Renderer | null {
     }
 
     // flocons
+    // Tous les flocons dans un seul tracé : un seul remplissage au lieu de 45.
     c.fillStyle = "rgba(255,255,255,0.85)";
+    c.beginPath();
     for (const f of flakes) {
       f.y += f.vy * dt;
       f.x -= dt * 0.03;
       if (f.y > 1) f.y -= 1;
       if (f.x < 0) f.x += 1;
-      c.beginPath();
-      c.arc((f.x + Math.sin(now / 900 + f.ph) * 0.01) * W, f.y * H, f.r * (H / 400), 0, Math.PI * 2);
-      c.fill();
+      const fx = (f.x + Math.sin(now / 900 + f.ph) * 0.01) * W;
+      const fr = f.r * (H / 400);
+      c.moveTo(fx + fr, f.y * H);
+      c.arc(fx, f.y * H, fr, 0, Math.PI * 2);
     }
+    c.fill();
 
     if (w) {
       // messages « Ouille ! » / « +1 »

@@ -10,6 +10,13 @@ import {
 
 type Phase = "intro" | "countdown" | "playing" | "paused" | "ending" | "lost" | "sending";
 
+/**
+ * Résolution du canvas (pixels physiques par pixel CSS). On vise la netteté, puis on descend à 1
+ * si l'appareil n'arrive pas à suivre (moins de 55 i/s) ; le choix est gardé pour les vols suivants.
+ */
+let resolution = Math.min(typeof window === "undefined" ? 1 : window.devicePixelRatio || 1, 1.5);
+const SLOW_FRAME_S = 1 / 55; // sous ~55 i/s : la résolution 1 rend le vol fluide (59 i/s mesurés sur la Nexus 7)
+
 function sounds(w: World, events: WorldEvent[]) {
   for (const e of events) {
     if (e === "hit") sfx.crash();
@@ -19,10 +26,10 @@ function sounds(w: World, events: WorldEvent[]) {
   }
 }
 
-/** Hauteur du terrain : le plus grand possible sans dépasser l'écran (tablette en paysage). */
+/** Hauteur du terrain : toute la zone de jeu (corps du panneau) sans la dépasser, et pas plus haut que large × 0,62. */
 function fitHeight(el: HTMLElement): number {
-  const top = el.getBoundingClientRect().top + window.scrollY;
-  const free = window.innerHeight - top - 12;
+  const body = el.closest<HTMLElement>('[data-testid="game-body"]');
+  const free = body ? body.clientHeight : window.innerHeight - el.getBoundingClientRect().top - 12;
   return Math.round(Math.max(240, Math.min(free, el.clientWidth * 0.62)));
 }
 
@@ -39,6 +46,7 @@ export function TourneeGame({ game, submit }: GameProps<TourneeContent>) {
   const renderer = useRef<Renderer | null>(null);
   const world = useRef<World | null>(null);
   const level = useRef(c.level);
+  const relayout = useRef<() => void>(() => undefined);
   const phaseRef = useRef<Phase>(phase);
   phaseRef.current = phase;
 
@@ -60,10 +68,10 @@ export function TourneeGame({ game, submit }: GameProps<TourneeContent>) {
     const apply = () => {
       const h = fitHeight(el);
       setHeight(h);
-      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
-      renderer.current?.resize(el.clientWidth, h, dpr);
+      renderer.current?.resize(el.clientWidth, h, resolution);
       if (world.current) world.current.aspect = el.clientWidth / h;
     };
+    relayout.current = apply;
     apply();
     const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(apply) : null;
     ro?.observe(el);
@@ -97,11 +105,22 @@ export function TourneeGame({ game, submit }: GameProps<TourneeContent>) {
     let raf = 0;
     let last = performance.now();
     let ending = 0;
+    let probeFrames = 0;
+    let probeTime = 0;
     const frame = (now: number) => {
       const dt = (now - last) / 1000;
       last = now;
       const w = world.current;
       const p = phaseRef.current;
+      // Mesure sur les 90 premières images de vol : trop lent -> canvas en résolution 1 (4× moins de pixels à 2×).
+      if (p === "playing" && resolution > 1 && probeFrames < 90 && dt < 0.5) {
+        probeFrames++;
+        probeTime += dt;
+        if (probeFrames === 90 && probeTime / probeFrames > SLOW_FRAME_S) {
+          resolution = 1;
+          relayout.current();
+        }
+      }
       if (w && (p === "playing" || p === "ending")) {
         const events = step(w, dt);
         sounds(w, events);
@@ -216,7 +235,7 @@ export function TourneeGame({ game, submit }: GameProps<TourneeContent>) {
             </p>
             <div className="mt-3 flex flex-wrap items-center justify-center gap-3 text-base font-bold text-white short:mt-2">
               <span className="rounded-xl bg-white/15 px-3 py-1">👆 Touchez en haut, au milieu ou en bas</span>
-              <span className="rounded-xl bg-white/15 px-3 py-1">⌨️ ou flèches ↑ ↓</span>
+              <span className="rounded-xl bg-white/15 px-3 py-1 pointer-coarse:hidden">⌨️ ou flèches ↑ ↓</span>
               <span className="rounded-xl bg-white/15 px-3 py-1" data-testid="tournee-lives">
                 {"❤️".repeat(Math.min(s.lives, 9))} {s.lives} vies
               </span>
