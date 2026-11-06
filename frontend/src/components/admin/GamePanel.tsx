@@ -79,6 +79,52 @@ function IntroCountdown({ state, now }: { state: AdminState; now: number }) {
   );
 }
 
+/** Action 5 du boîtier Matter : verrouillée, elle affiche un message de patience ; autorisée, elle lance le secours. */
+function EmergencyControl({ state }: { state: AdminState }) {
+  const authorized = state.emergency_authorized;
+  const possible = NEXT_PHASES[state.phase].includes("SECOURS");
+  return (
+    <div
+      className={`rounded-lg border p-3 ${authorized ? "border-bordeaux-600 bg-bordeaux-900/40" : "border-white/15 bg-black/25"}`}
+      data-testid="emergency-control"
+      data-authorized={authorized}
+    >
+      <div className="mb-1 flex items-center gap-2">
+        <p className="text-sm font-bold text-or-300">🚨 Protocole d'urgence des lutins</p>
+        <span className="ml-auto">
+          <Pill tone={authorized ? "bad" : "neutral"}>{authorized ? "autorisé" : "verrouillé"}</Pill>
+        </span>
+      </div>
+      <p className="mb-2 text-xs text-parchemin-200/70">
+        {authorized
+          ? possible
+            ? "L'action 5 du boîtier lance immédiatement la vidéo du secours des lutins."
+            : "Autorisé, mais le secours ne peut être lancé qu'en enquête ou en finale."
+          : "L'action 5 du boîtier affiche sur la TV : « Soyez patients mes lutins… »."}
+      </p>
+      {authorized ? (
+        <ActionButton className="w-full" onAction={() => api.emergency(false)} success="Protocole d'urgence verrouillé">
+          🔒 Verrouiller le protocole
+        </ActionButton>
+      ) : (
+        <ActionButton
+          variant="primary"
+          className="w-full"
+          onAction={() => api.emergency(true)}
+          success="Protocole d'urgence autorisé"
+          confirm={{
+            title: "Autoriser le protocole d'urgence ?",
+            message: "Dès que les lutins appuieront sur l'action 5, la vidéo du secours des lutins sera diffusée sur la TV.",
+            confirmLabel: "Autoriser",
+          }}
+        >
+          🚨 Autoriser le protocole d'urgence
+        </ActionButton>
+      )}
+    </div>
+  );
+}
+
 export function GamePanel({ state, clockOffset }: { state: AdminState; clockOffset: number }) {
   const now = useNow(clockOffset);
   const elapsed = state.started_at ? now - Date.parse(state.started_at) : 0;
@@ -158,6 +204,7 @@ export function GamePanel({ state, clockOffset }: { state: AdminState; clockOffs
                 );
               })}
           </div>
+          {state.phase !== "FIN" && <EmergencyControl state={state} />}
         </div>
       </Card>
 

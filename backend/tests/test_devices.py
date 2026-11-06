@@ -12,12 +12,12 @@ def team_status(svc, team_id: str) -> str:
         return s.get(TeamProgress, team_id).status
 
 
-def test_catalog_lists_ten_actions_first_four_defined(client):
+def test_catalog_lists_ten_actions_first_five_defined(client):
     r = client.get("/api/devices/actions")
     assert r.status_code == 200
     actions = r.json()["actions"]
     assert [a["action"] for a in actions] == list(range(1, 11))
-    assert [a["action"] for a in actions if a["defined"]] == [1, 2, 3, 4]
+    assert [a["action"] for a in actions if a["defined"]] == [1, 2, 3, 4, 5]
 
 
 @pytest.mark.parametrize(("number", "team_id"), [(1, "rouge"), (2, "verte"), (3, "bleue"), (4, "or")])

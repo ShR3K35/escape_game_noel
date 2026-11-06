@@ -56,6 +56,10 @@ class MemoryDifficultyBody(BaseModel):
     level: int = Field(ge=1, le=99)
 
 
+class EmergencyBody(BaseModel):
+    authorized: bool
+
+
 class ScheduleBody(BaseModel):
     at: str | None = Field(None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
     enabled: bool | None = None
@@ -95,6 +99,12 @@ async def countdown_cancel(request: Request, svc=Depends(services)):
 @router.post("/game/phase")
 async def phase(body: PhaseBody, request: Request, svc=Depends(services)):
     return await command(request, lambda s: svc.game.set_phase(s, body.phase, confirm=body.confirm))
+
+
+@router.post("/game/emergency")
+async def emergency(body: EmergencyBody, request: Request, svc=Depends(services)):
+    """Autorise (ou verrouille) le protocole d'urgence déclenché par l'action 5 du boîtier Matter."""
+    return await command(request, lambda s: svc.game.set_emergency_authorized(s, body.authorized))
 
 
 @router.post("/game/reset")

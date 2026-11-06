@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, Integer, String, Text, true
+from sqlalchemy import JSON, Boolean, DateTime, Integer, String, Text, false, true
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.db import Base
@@ -29,6 +29,8 @@ class GameState(Base):
     tv_show_progress: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
     # Fin du compte à rebours affiché sur la TV avant l'intro (PREPARATION) ; à échéance -> INTRO.
     intro_countdown_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Protocole d'urgence autorisé par le MJ : l'action 5 du boîtier lance alors le secours des lutins.
+    emergency_authorized: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 

@@ -103,6 +103,7 @@ class Services:
             "messages": [m.model_dump() for m in self.cfg.messages],
             "ambients": list(AMBIENTS),
             "events": self.events(s, 40),
+            "emergency_authorized": bool(self.game.state(s).emergency_authorized),
             "time_scale": self.time_scale,
             "demo_mode": self.settings.demo_mode,
             "game": self.cfg.game.model_dump(),

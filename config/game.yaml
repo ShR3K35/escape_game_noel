@@ -106,6 +106,10 @@ messages:
     title: "Il reste 10 minutes"
     text: "Dépêchez-vous ! Le traîneau décolle dans dix minutes."
     duration: 15
+  - id: patience_lutins
+    title: "Message du Père Noël"
+    text: "Soyez patients mes lutins, laissez encore un peu de temps aux adultes de résoudre l'enquête"
+    duration: 15
   - id: bravo_lutins
     title: "Bravo les lutins !"
     text: "Mes petits lutins ont réussi toutes leurs missions. Je suis fier de vous !"

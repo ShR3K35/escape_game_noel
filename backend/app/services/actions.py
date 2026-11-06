@@ -6,6 +6,7 @@ dans `handlers` est exécutée ; un numéro sans fonction ne fait rien.
 
 Actions définies :
   1 à 4  valider la mission de l'équipe rouge, verte, bleue, or
+  5      protocole d'urgence : secours des lutins si le MJ l'a autorisé, sinon message de patience
 """
 
 from collections.abc import Callable
@@ -19,6 +20,7 @@ ACTION_COUNT = 10
 
 # Action N -> équipe dont elle valide la mission (identifiants de config/game.yaml).
 TEAM_VALIDATION_ACTIONS = {1: "rouge", 2: "verte", 3: "bleue", 4: "or"}
+EMERGENCY_ACTION = 5
 
 # (session, numéro, source) -> détail renvoyé au boîtier. Le résultat doit contenir "changed": bool
 # (True = l'état de la partie a changé, les écrans sont alors notifiés).
@@ -32,6 +34,7 @@ class ActionsService:
         self.handlers: dict[int, ActionHandler] = {
             number: self._validate_team(team_id) for number, team_id in TEAM_VALIDATION_ACTIONS.items()
         }
+        self.handlers[EMERGENCY_ACTION] = lambda s, _number, _source: self.game.trigger_emergency(s, "device")
 
     def _validate_team(self, team_id: str) -> ActionHandler:
         """Passe l'équipe à VALIDEE (étapes intermédiaires journalisées). Déjà validée : sans effet."""

@@ -33,12 +33,12 @@ vers uvicorn `--reload` (port 8000).
 | `core/config.py` | paramètres techniques (variables d'environnement) |
 | `core/game_config.py` | schéma Pydantic de `config/game.yaml`, validé au démarrage (références croisées, horaires, fichiers, calcul de chaque question de la machine à cadeaux : +, -, × uniquement) |
 | `core/security.py` | hash scrypt, jeton de session HMAC, limitation des tentatives de connexion |
-| `models/` | tables SQLAlchemy, migrations Alembic appliquées automatiquement au démarrage (0003 : la machine à cadeaux reprend la ligne de l'ancien jeu des traces ; 0005 : la tournée du traîneau reprend celle des cadeaux mélangés) |
+| `models/` | tables SQLAlchemy, migrations Alembic appliquées automatiquement au démarrage (0003 : la machine à cadeaux reprend la ligne de l'ancien jeu des traces ; 0005 : la tournée du traîneau reprend celle des cadeaux mélangés ; 0006 : autorisation du protocole d'urgence) |
 | `services/game.py` | machine à états de la partie et des équipes, TV (vidéos, messages, ambiance) |
 | `services/kids.py` | mini-jeux : progression séquentielle, vérification des réponses côté serveur, indices, tirage des commandes de la machine à cadeaux (conservé en base), niveau de difficulté de la tournée du traîneau choisi par le MJ |
 | `services/schedule.py` | planning de la soirée (relatif au démarrage ou heure fixe, accélération démo) |
 | `services/container.py` | transactions, idempotence, vues par écran, sauvegarde |
-| `services/actions.py` | actions 1 à 10 déclenchées par le boîtier ESP32 Matter, journalisées ; 1 à 4 valident la mission des équipes rouge, verte, bleue, or (`handlers`, voir `firmware/esp32-matter/README.md`) |
+| `services/actions.py` | actions 1 à 10 déclenchées par le boîtier ESP32 Matter, journalisées ; 1 à 4 valident la mission des équipes rouge, verte, bleue, or, 5 lance le protocole d'urgence si le MJ l'a autorisé (`handlers`, voir `firmware/esp32-matter/README.md`) |
 | `services/realtime.py` | diffusion WebSocket des instantanés d'état |
 | `api/` | routes REST et WebSocket |
 | `cli.py` | `hash-password`, `check-config`, `backup`, `seed-demo` |

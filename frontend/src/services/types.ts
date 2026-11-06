@@ -245,6 +245,8 @@ export interface AdminState extends Omit<PublicState, "teams"> {
   messages: MessagePreset[];
   ambients: string[];
   events: GameEvent[];
+  /** Protocole d'urgence autorisé : l'action 5 du boîtier Matter lance le secours des lutins. */
+  emergency_authorized: boolean;
   time_scale: number;
   demo_mode: boolean;
   game: { title: string; start_time: string; end_time: string; timezone: string };

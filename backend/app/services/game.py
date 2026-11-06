@@ -44,6 +44,11 @@ COUNTDOWN_MAX_SECONDS = 4 * 3600
 # toute seule (le maître du jeu décide).
 COUNTDOWN_GRACE = timedelta(seconds=120)
 
+# Protocole d'urgence demandé avant l'autorisation du MJ : message affiché sur la TV
+# (texte modifiable dans config/game.yaml, message « patience_lutins »).
+EMERGENCY_REFUSED_MESSAGE = "patience_lutins"
+EMERGENCY_REFUSED_TEXT = "Soyez patients mes lutins, laissez encore un peu de temps aux adultes de résoudre l'enquête"
+
 
 def _team_path(current: str, target: str) -> list[str]:
     """Chemin le plus court dans la machine à états d'une équipe (ex. NON_COMMENCE -> VALIDEE)."""
@@ -121,6 +126,7 @@ class GameService:
         self._clear_play(st)
         self._clear_message(st)
         st.tv_ambient = "neige"
+        st.emergency_authorized = False
         self._touch(st)
         for row in s.query(TeamProgress).all():
             row.status = "NON_COMMENCE"
@@ -172,6 +178,38 @@ class GameService:
                   "scheduler")
         self.set_phase(s, "INTRO", source="scheduler")
         return True
+
+    # ------------------------------------------------------ protocole d'urgence
+    def set_emergency_authorized(self, s: Session, authorized: bool, source: str = "admin") -> dict:
+        st = self.state(s)
+        if bool(st.emergency_authorized) == authorized:
+            return {"changed": False, "authorized": authorized}
+        st.emergency_authorized = authorized
+        self._touch(st)
+        log_event(s, self.clock, "emergency_authorization",
+                  f"Protocole d'urgence {'autorisé' if authorized else 'verrouillé'}", {"authorized": authorized},
+                  source)
+        return {"changed": True, "authorized": authorized}
+
+    def trigger_emergency(self, s: Session, source: str = "device") -> dict:
+        """Demande des lutins. Non autorisée : message de patience sur la TV. Autorisée : phase SECOURS
+        (vidéo du secours des lutins, puis fin de partie)."""
+        st = self.state(s)
+        if not st.emergency_authorized:
+            log_event(s, self.clock, "emergency_refused", "Protocole d'urgence demandé : pas encore autorisé",
+                      {"phase": st.phase}, source)
+            if self.cfg.message(EMERGENCY_REFUSED_MESSAGE):
+                self.show_message(s, message_id=EMERGENCY_REFUSED_MESSAGE, source=source)
+            else:
+                self.show_message(s, text=EMERGENCY_REFUSED_TEXT, duration=15, source=source)
+            return {"changed": True, "effect": "emergency_refused"}
+        if st.phase == "SECOURS":
+            return {"changed": False, "effect": "emergency_running"}
+        if "SECOURS" not in PHASE_TRANSITIONS[st.phase]:
+            log_event(s, self.clock, "emergency_unavailable",
+                      f"Protocole d'urgence impossible en phase {st.phase}", {"phase": st.phase}, source)
+            return {"changed": False, "effect": "emergency_unavailable", "phase": st.phase}
+        return {"effect": "emergency_started"} | self.set_phase(s, "SECOURS", source=source)
 
     # ---------------------------------------------------------------- équipes
     def set_team_status(self, s: Session, team_id: str, target: str, source: str = "admin") -> dict:
