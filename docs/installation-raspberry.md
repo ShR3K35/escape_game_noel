@@ -72,6 +72,50 @@ Ne créez **aucune** redirection de port vers le Pi sur la box.
   volume du bureau. Réglez le volume du Pi à 100 % et ajustez avec la télécommande de la TV.
 - Si la TV n'affiche rien au démarrage : vérifiez l'entrée HDMI, puis `~/.local/bin/noel-kiosk.sh` à la main.
 
+## Raspberry Pi 3 (1 Go de RAM)
+
+Le jeu tourne sur un Pi 3 B, avec quelques adaptations :
+
+- **Construire l'image sur un PC**, pas sur le Pi (la compilation npm + pip sature 1 Go de RAM) :
+
+  ```bash
+  # sur le PC (Docker avec buildx/QEMU)
+  docker buildx build --platform linux/arm64 --target runtime -t noel2026:arm64 --load .
+  docker save noel2026:arm64 | gzip -1 | ssh pi@noel2026.local 'gunzip | docker load && docker tag noel2026:arm64 noel2026:latest'
+  # sur le Pi
+  KIOSK_MODE=1280x720 ./scripts/deploy-pi.sh --kiosk --no-build
+  ```
+
+- **Affichage en 720p** : `KIOSK_MODE=1280x720` force la résolution HDMI à l'ouverture de session (2,25× moins de
+  pixels à composer qu'en 1080p).
+- **Vidéos allégées** : Chromium décode la vidéo en logiciel sur le Pi 3. Réencoder en 720p, H.264 Main, 2 Mbit/s max :
+
+  ```bash
+  ./scripts/encode-pi.sh media/videos-pi3 media/videos/*.mp4   # les originaux ne sont pas modifiés
+  ```
+
+- **Mémoire** : arrêter tout autre service lourd (Nextcloud, etc.) et `sudo systemctl mask --now packagekit`.
+- **Alimentation** : bloc officiel 5,1 V / 2,5 A. `vcgencmd get_throttled` doit afficher `0x0` ; sinon le processeur
+  est bridé à 600 MHz et les vidéos saccadent.
+
+### Écran en 1024×768 avec bandes noires et sans son
+
+Le Pi n'a pas pu lire l'identité (EDID) de l'écran : écran éteint ou sur une autre entrée au démarrage, câble ou
+adaptateur douteux, ou EDID d'usine défectueux (`dmesg | grep -i edid` → « checksum is invalid »). Sans EDID, le Pi
+choisit un mode 4:3 de secours et n'envoie pas le son sur le HDMI.
+
+1. Allumer l'écran sur la bonne entrée **avant** le Pi, ou débrancher/rebrancher le câble HDMI.
+2. Si l'EDID est défectueux, le lire sur le bus DDC (`/dev/i2c-2` sur Pi 3), corriger l'octet 127 du bloc 0 (somme
+   des 128 octets ≡ 0 mod 256), l'installer dans `/lib/firmware/edid/<écran>.bin`, l'inclure dans l'initramfs
+   (hook dans `/etc/initramfs-tools/hooks/` puis `sudo update-initramfs -u`) et ajouter à `/boot/firmware/cmdline.txt` :
+   `drm.edid_firmware=HDMI-A-1:edid/<écran>.bin`. À retirer si l'écran change.
+3. Vérifier la sortie son : `wpctl status` → le sink « HDMI » doit porter l'astérisque (`wpctl set-default <id>`).
+
+### Accès depuis un téléphone Android
+
+Si Chrome affiche `ERR_TOO_MANY_RETRIES` alors que le PC accède au Pi, utilisez **Firefox** (ou désactivez « Toujours
+utiliser des connexions sécurisées » et tout VPN / bloqueur de pubs) et tapez l'IP : `http://192.168.x.y/admin`.
+
 ## Mise à jour
 
 ```bash

@@ -5,6 +5,8 @@
 #   ./scripts/deploy-pi.sh --kiosk      + configuration de l'affichage TV (Chromium plein écran au démarrage)
 #   ./scripts/deploy-pi.sh --update     git pull puis reconstruction
 #   ./scripts/deploy-pi.sh --no-hostname  ne pas renommer la machine
+#   ./scripts/deploy-pi.sh --no-build     utiliser l'image noel2026:latest déjà chargée (docker load),
+#                                         utile sur Pi 3 / 1 Go où la compilation sature la mémoire
 #
 # Internet est nécessaire pendant l'installation (paquets, images Docker).
 # Ensuite, l'application fonctionne entièrement hors ligne.
@@ -14,13 +16,14 @@ ROOT="$PWD"
 HOSTNAME_TARGET="${NOEL_HOSTNAME:-noel2026}"
 COMPOSE=(docker compose -f compose.prod.yml)
 
-KIOSK=0; UPDATE=0; SET_HOSTNAME=1
+KIOSK=0; UPDATE=0; SET_HOSTNAME=1; BUILD=1
 for arg in "$@"; do
   case "$arg" in
     --kiosk) KIOSK=1 ;;
     --update) UPDATE=1 ;;
     --no-hostname) SET_HOSTNAME=0 ;;
-    -h|--help) sed -n '2,12p' "$0"; exit 0 ;;
+    --no-build) BUILD=0 ;;
+    -h|--help) sed -n '2,14p' "$0"; exit 0 ;;
     *) echo "option inconnue : $arg" >&2; exit 2 ;;
   esac
 done
@@ -89,9 +92,16 @@ mkdir -p data media/videos backups
 HTTP_PORT="$(grep -E '^HTTP_PORT=' .env | cut -d= -f2)"; export HTTP_PORT="${HTTP_PORT:-80}"
 
 # ------------------------------------------------------- Build + démarrage
-say "Construction de l'image et démarrage (quelques minutes la première fois)"
-"${COMPOSE[@]}" up -d --build --remove-orphans
-docker image prune -f >/dev/null 2>&1 || true
+if (( BUILD )); then
+  say "Construction de l'image et démarrage (quelques minutes la première fois)"
+  "${COMPOSE[@]}" up -d --build --remove-orphans
+  docker image prune -f >/dev/null 2>&1 || true
+else
+  say "Démarrage avec l'image noel2026:latest existante (sans compilation)"
+  docker image inspect noel2026:latest >/dev/null 2>&1 || sudo docker image inspect noel2026:latest >/dev/null 2>&1 \
+    || { echo "Image noel2026:latest absente : chargez-la (docker load) ou relancez sans --no-build." >&2; exit 1; }
+  "${COMPOSE[@]}" up -d --no-build --remove-orphans
+fi
 
 say "Attente du serveur"
 for _ in $(seq 1 60); do

@@ -4,6 +4,8 @@
 # wayfire (Bookworm 2023-2024) et X11/LXDE (autostart XDG).
 set -euo pipefail
 URL="${KIOSK_URL:-http://localhost/tv}"
+# Résolution forcée de la sortie HDMI (ex. KIOSK_MODE=1280x720 sur Pi 3 : 2,25× moins de pixels qu'en 1080p).
+MODE="${KIOSK_MODE:-}"
 BIN_DIR="$HOME/.local/bin"
 LAUNCHER="$BIN_DIR/noel-kiosk.sh"
 
@@ -19,6 +21,11 @@ cat >"$LAUNCHER" <<EOF
 #!/usr/bin/env bash
 # Attend que l'application réponde, puis ouvre la TV en plein écran.
 for _ in \$(seq 1 90); do curl -fsS "${URL%/tv}/api/health" >/dev/null 2>&1 && break; sleep 2; done
+MODE="${MODE}"
+if [[ -n "\$MODE" ]] && command -v wlr-randr >/dev/null 2>&1; then
+  OUT="\$(wlr-randr | awk '/^[^ ]/{print \$1; exit}')"
+  [[ -n "\$OUT" ]] && wlr-randr --output "\$OUT" --mode "\$MODE" || true
+fi
 exec "$CHROMIUM" --kiosk "$URL" \\
   --noerrdialogs --disable-infobars --no-first-run --disable-session-crashed-bubble \\
   --autoplay-policy=no-user-gesture-required \\
