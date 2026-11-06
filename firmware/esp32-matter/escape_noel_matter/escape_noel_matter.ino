@@ -1,10 +1,10 @@
-// Escape de Noël — boîtier Matter ESP32 DevKit V1 : 10 boutons virtuels + 10 lampes RGB virtuelles.
+// Escape de Noël — boîtier Matter ESP32 DevKit V1 : 10 boutons virtuels + 5 lampes RGB virtuelles.
 // Aucun câblage : tout se passe dans l'application domotique (Smart Life, Google Home...).
 //
 // Endpoints Matter (dans cet ordre, l'application les nomme dans l'ordre de création) :
 //   1-10  « Action 1..10 »  prise On/Off momentanée : l'allumer depuis l'application appelle
 //                           POST {SERVER_BASE_URL}/api/devices/actions/N puis elle se rééteint.
-//   11-20 « Lampe 1..10 »   lampe couleur virtuelle (on/off + couleur), sans LED physique :
+//   11-15 « Lampe 1..5 »    lampe couleur virtuelle (on/off + couleur), sans LED physique :
 //                           son état est seulement mémorisé par Matter et affiché sur le port série.
 //
 // Carte « ESP32 Dev Module », Partition Scheme « Huge APP (3MB No OTA/1MB SPIFFS) ».
@@ -21,13 +21,21 @@
 #error "Copier config.example.h en config.h et l'adapter"
 #endif
 
-constexpr uint8_t COUNT = 10;
+#ifndef ACTION_COUNT
+#define ACTION_COUNT 10
+#endif
+// RAM de l'ESP32 classique : ~2,6 Ko par action, ~11,5 Ko par lampe couleur. 10 + 10 plante au démarrage ;
+// 10 + 5 laisse ~66 Ko libres, la marge nécessaire à l'appairage. Modifiable dans config.h.
+#ifndef LAMP_COUNT
+#define LAMP_COUNT 5
+#endif
+constexpr uint8_t COUNT = ACTION_COUNT;
 constexpr uint8_t RESET_BUTTON_PIN = 0;  // bouton BOOT de la carte
 constexpr uint8_t STATUS_LED_PIN = 2;    // LED bleue de la carte
 constexpr uint8_t HTTP_ATTEMPTS = 3;
 
 MatterOnOffPlugin actions[COUNT];
-MatterColorLight lamps[COUNT];
+MatterColorLight lamps[LAMP_COUNT > 0 ? LAMP_COUNT : 1];
 
 // --- File d'attente des actions -------------------------------------------------
 // Les callbacks Matter tournent dans la tâche Matter : on n'y fait aucun appel réseau,
@@ -134,7 +142,7 @@ void printPairingInfo() {
 void setup() {
   Serial.begin(115200);
   delay(200);
-  Serial.println("\nEscape de Noël — boîtier Matter virtuel : 10 actions / 10 lampes");
+  Serial.println("\nEscape de Noël — boîtier Matter virtuel");
 
   pinMode(STATUS_LED_PIN, OUTPUT);
   pinMode(RESET_BUTTON_PIN, INPUT_PULLUP);
@@ -157,12 +165,15 @@ void setup() {
       return true;
     });
   }
-  for (uint8_t i = 0; i < COUNT; i++) {
+  for (uint8_t i = 0; i < LAMP_COUNT; i++) {
     lamps[i].begin(false, {0, 254, 254});
     lamps[i].onChange([i](bool on, espHsvColor_t hsv) { return onLampChange(i, on, hsv); });
   }
 
+  Serial.printf("Endpoints : %u actions + %u lampes, RAM libre avant Matter : %u o\n", ACTION_COUNT, LAMP_COUNT,
+                ESP.getFreeHeap());
   Matter.begin();
+  Serial.printf("RAM libre après Matter : %u o (bloc max %u o)\n", ESP.getFreeHeap(), ESP.getMaxAllocHeap());
   if (!Matter.isDeviceCommissioned()) printPairingInfo();
 }
 

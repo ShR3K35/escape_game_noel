@@ -10,8 +10,8 @@
 #define DEVICE_NAME "esp32-escape"
 
 // --- Wi-Fi -------------------------------------------------------------------
-// Inutile en temps normal : l'application (Smart Life, Google Home...) transmet le Wi-Fi
-// pendant l'appairage Matter en Bluetooth. Ne sert que si le BLE Matter est désactivé.
+// OBLIGATOIRE sur l'ESP32 classique : le core Arduino n'y active pas l'appairage Matter par
+// Bluetooth, le boîtier rejoint donc ce Wi-Fi (2,4 GHz) puis s'appaire par le réseau.
 #define WIFI_SSID ""
 #define WIFI_PASSWORD ""
 
@@ -20,3 +20,9 @@
 #define ACTION_AUTO_OFF_MS 1000
 // Appui long sur le bouton BOOT (GPIO0) pour effacer l'appairage Matter (ms).
 #define FACTORY_RESET_HOLD_MS 5000
+
+// --- Endpoints ---------------------------------------------------------------
+// Nombre de prises « Action » et de lampes couleur. Sur l'ESP32 classique, 10 + 5 est le maximum
+// raisonnable (une lampe couleur consomme ~11,5 Ko de RAM, 10 + 10 plante au démarrage).
+#define ACTION_COUNT 10
+#define LAMP_COUNT 5

@@ -1,4 +1,4 @@
-# Boîtier Matter ESP32 : 10 boutons + 10 lampes RGB virtuels
+# Boîtier Matter ESP32 : 10 boutons + 5 lampes RGB virtuels
 
 Un ESP32 DevKit V1 (ESP32-WROOM-32) exposé en **Matter over Wi-Fi**, **sans aucun câblage** : les boutons et les
 lampes n'existent que dans l'application domotique.
@@ -6,7 +6,7 @@ lampes n'existent que dans l'application domotique.
 | Endpoints | Dans l'application (Smart Life, Google Home, Apple Maison, Home Assistant…) | Effet |
 |---|---|---|
 | 1 à 10 | 10 prises « Action 1 » … « Action 10 » (à renommer dans l'application) | Allumer → `POST /api/devices/actions/N` sur le Raspberry Pi, puis la prise se rééteint seule après 1 s |
-| 11 à 20 | 10 lampes couleur « Lampe 1 » … « Lampe 10 » | lampes virtuelles : on/off et couleur mémorisés par Matter, affichés sur le port série, aucune LED |
+| 11 à 15 | 5 lampes couleur « Lampe 1 » … « Lampe 5 » | lampes virtuelles : on/off et couleur mémorisés par Matter, affichés sur le port série, aucune LED |
 
 ```text
  Smart Life ──Matter (Wi-Fi)──▶ ESP32 ──HTTP POST /api/devices/actions/N──▶ Raspberry Pi (FastAPI)
@@ -20,7 +20,8 @@ la **LED bleue** (clignote : à appairer · fixe : connecté · éteinte : hors 
 
 1. Arduino IDE 2 → Gestionnaire de cartes → **esp32 par Espressif Systems ≥ 3.1** (bibliothèque Matter incluse).
 2. Copier `escape_noel_matter/config.example.h` en `escape_noel_matter/config.h` et renseigner `SERVER_BASE_URL`
-   et `DEVICE_TOKEN` (`config.h` est ignoré par git).
+   et `DEVICE_TOKEN`, ainsi que **`WIFI_SSID` / `WIFI_PASSWORD`** (Wi-Fi 2,4 GHz, obligatoires) ;
+   `config.h` est ignoré par git.
 3. Carte **ESP32 Dev Module**, Partition Scheme **Huge APP (3MB No OTA/1MB SPIFFS)**,
    **Erase All Flash Before Sketch Upload : Enabled** au premier téléversement.
 4. Téléverser, puis ouvrir le moniteur série à 115200 bauds : le code d'appairage et le lien du QR code s'affichent.
@@ -71,7 +72,12 @@ curl -X POST http://192.168.1.5/api/devices/actions/1 \
 - Smart Life accepte les appareils Matter Wi-Fi depuis le téléphone ; si l'ajout échoue, appairer d'abord dans
   une autre application (Google Home, Apple Maison, Home Assistant), puis partager l'appareil vers Smart Life
   (« Associer à une autre application » / multi-admin).
-- Le téléphone doit être sur le même réseau Wi-Fi 2,4 GHz que le Raspberry Pi et avoir le Bluetooth activé.
-- 20 endpoints sur un ESP32 classique (320 Ko de RAM) est proche de la limite. Si le moniteur série signale un
-  manque de mémoire, réduire le nombre de lampes Matter ou passer sur un ESP32-S3 / ESP32-C6.
+- **Pas d'appairage Bluetooth** sur l'ESP32 classique (le core Arduino ESP32 3.3 n'active pas `CONFIG_ENABLE_CHIPOBLE`
+  pour cette puce) : le boîtier se connecte au Wi-Fi de `config.h` et s'appaire **par le réseau**. Le téléphone doit
+  être sur le même Wi-Fi. Apple Maison et Home Assistant gèrent cet appairage « déjà sur le réseau » ; si une
+  application cherche le boîtier en Bluetooth sans le trouver, appairer avec l'une d'elles puis partager.
+- Tant que le Wi-Fi n'est pas joint, le moniteur série affiche des points et la LED bleue reste éteinte.
+- **Mémoire** : sur l'ESP32 classique (320 Ko de RAM), une prise coûte ~2,6 Ko et une lampe couleur ~11,5 Ko.
+  Mesuré sur la carte : 10 + 10 plante au démarrage (abort dans `color_control`), 10 + 5 laisse ~66 Ko libres
+  (`ACTION_COUNT` / `LAMP_COUNT` dans `config.h`). Pour 10 lampes couleur, passer sur un ESP32-S3 ou ESP32-C6.
 - Le Raspberry Pi doit garder la même IP (bail DHCP réservé sur la box) : `SERVER_BASE_URL` est une IP fixe.
