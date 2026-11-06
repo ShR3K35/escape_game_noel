@@ -41,11 +41,33 @@ def test_authorized_starts_secours_video(admin, svc):
         assert change.data == {"from": "ENQUETE", "to": "SECOURS"} and change.source == "device"
 
 
-def test_authorized_but_wrong_phase_does_nothing(admin):
+def test_authorized_plays_video_even_with_unfinished_teams(admin):
+    to_enquete(admin)
+    admin.post("/api/admin/teams/rouge", json={"status": "EN_COURS"})
+    admin.post("/api/admin/game/emergency", json={"authorized": True})
+    assert admin.post("/api/devices/actions/5").json()["effect"] == "emergency_started"
+    state = admin.get("/api/admin/state").json()
+    assert state["tv"]["play"]["video"]["id"] == "secours"
+    assert {t["status"] for t in state["teams"]} == {"NON_COMMENCE", "EN_COURS"}
+
+
+def test_authorized_outside_enquete_still_plays_video(admin):
     admin.post("/api/admin/game/emergency", json={"authorized": True})
     r = admin.post("/api/devices/actions/5").json()
-    assert r["effect"] == "emergency_unavailable" and r["phase"] == "PREPARATION" and r["changed"] is False
-    assert admin.get("/api/admin/state").json()["phase"] == "PREPARATION"
+    assert r["effect"] == "emergency_video" and r["phase"] == "PREPARATION" and r["changed"] is True
+    state = admin.get("/api/admin/state").json()
+    assert state["phase"] == "PREPARATION"
+    assert state["tv"]["play"]["video"]["id"] == "secours"
+
+
+def test_secours_phase_replays_video_once_finished(admin):
+    to_enquete(admin)
+    admin.post("/api/admin/game/emergency", json={"authorized": True})
+    admin.post("/api/devices/actions/5")
+    admin.post("/api/admin/tv/stop")
+    r = admin.post("/api/devices/actions/5").json()
+    assert r["effect"] == "emergency_video" and r["phase"] == "SECOURS"
+    assert admin.get("/api/admin/state").json()["tv"]["play"]["video"]["id"] == "secours"
 
 
 def test_lock_again_and_reset_clear_authorization(admin):

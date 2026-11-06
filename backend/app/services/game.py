@@ -192,8 +192,10 @@ class GameService:
         return {"changed": True, "authorized": authorized}
 
     def trigger_emergency(self, s: Session, source: str = "device") -> dict:
-        """Demande des lutins. Non autorisée : message de patience sur la TV. Autorisée : phase SECOURS
-        (vidéo du secours des lutins, puis fin de partie)."""
+        """Demande des lutins. Non autorisée : message de patience sur la TV. Autorisée : la vidéo du secours
+        des lutins est toujours lue, quel que soit l'avancement des équipes. Depuis l'enquête ou la finale,
+        la partie passe en SECOURS (puis FIN à la fin de la vidéo) ; dans les autres phases, la vidéo est
+        seulement lancée sur la TV."""
         st = self.state(s)
         if not st.emergency_authorized:
             log_event(s, self.clock, "emergency_refused", "Protocole d'urgence demandé : pas encore autorisé",
@@ -203,13 +205,17 @@ class GameService:
             else:
                 self.show_message(s, text=EMERGENCY_REFUSED_TEXT, duration=15, source=source)
             return {"changed": True, "effect": "emergency_refused"}
-        if st.phase == "SECOURS":
-            return {"changed": False, "effect": "emergency_running"}
-        if "SECOURS" not in PHASE_TRANSITIONS[st.phase]:
-            log_event(s, self.clock, "emergency_unavailable",
-                      f"Protocole d'urgence impossible en phase {st.phase}", {"phase": st.phase}, source)
-            return {"changed": False, "effect": "emergency_unavailable", "phase": st.phase}
-        return {"effect": "emergency_started"} | self.set_phase(s, "SECOURS", source=source)
+        video_id = self.cfg.phase_videos.get("SECOURS")
+        if not video_id:
+            raise GameError("aucune vidéo de secours configurée (phase_videos.SECOURS)", 500)
+        if st.tv_play_id and st.tv_video_id == video_id:
+            return {"changed": False, "effect": "emergency_running"}  # déjà à l'écran : pas de redémarrage
+        if "SECOURS" in PHASE_TRANSITIONS[st.phase]:
+            return {"effect": "emergency_started"} | self.set_phase(s, "SECOURS", source=source)
+        log_event(s, self.clock, "emergency_video",
+                  f"Protocole d'urgence en phase {st.phase} : vidéo du secours des lutins", {"phase": st.phase},
+                  source)
+        return {"effect": "emergency_video", "phase": st.phase} | self.play_video(s, video_id, source, force=True)
 
     # ---------------------------------------------------------------- équipes
     def set_team_status(self, s: Session, team_id: str, target: str, source: str = "admin") -> dict:

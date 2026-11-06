@@ -58,7 +58,7 @@ Chaque appui est journalisé (`device_action`, visible dans le journal de l'admi
 | 2 | valide la mission de l'**équipe Verte** |
 | 3 | valide la mission de l'**équipe Bleue** |
 | 4 | valide la mission de l'**équipe Or** |
-| 5 | **protocole d'urgence** : tant que le MJ ne l'a pas autorisé (onglet Partie, « 🚨 Autoriser le protocole d'urgence »), la TV affiche « Soyez patients mes lutins, laissez encore un peu de temps aux adultes de résoudre l'enquête » ; une fois autorisé, lance la phase Secours des lutins et sa vidéo (en enquête ou en finale uniquement) |
+| 5 | **protocole d'urgence** : tant que le MJ ne l'a pas autorisé (onglet Partie, « 🚨 Autoriser le protocole d'urgence »), la TV affiche « Soyez patients mes lutins, laissez encore un peu de temps aux adultes de résoudre l'enquête » ; une fois autorisé, lance toujours la vidéo du secours des lutins, même si les équipes n'ont pas fini (en enquête ou en finale, la partie passe aussi en phase Secours puis Fin) |
 | 6 à 10 | rien pour l'instant : réponse `{"action": n, "defined": false, "changed": false}` |
 
 Valider une équipe déjà validée est sans effet (`"changed": false`). La validation passe par les mêmes étapes

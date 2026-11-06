@@ -82,7 +82,6 @@ function IntroCountdown({ state, now }: { state: AdminState; now: number }) {
 /** Action 5 du boîtier Matter : verrouillée, elle affiche un message de patience ; autorisée, elle lance le secours. */
 function EmergencyControl({ state }: { state: AdminState }) {
   const authorized = state.emergency_authorized;
-  const possible = NEXT_PHASES[state.phase].includes("SECOURS");
   return (
     <div
       className={`rounded-lg border p-3 ${authorized ? "border-bordeaux-600 bg-bordeaux-900/40" : "border-white/15 bg-black/25"}`}
@@ -97,9 +96,7 @@ function EmergencyControl({ state }: { state: AdminState }) {
       </div>
       <p className="mb-2 text-xs text-parchemin-200/70">
         {authorized
-          ? possible
-            ? "L'action 5 du boîtier lance immédiatement la vidéo du secours des lutins."
-            : "Autorisé, mais le secours ne peut être lancé qu'en enquête ou en finale."
+          ? "L'action 5 du boîtier lance immédiatement la vidéo du secours des lutins, même si les équipes n'ont pas fini."
           : "L'action 5 du boîtier affiche sur la TV : « Soyez patients mes lutins… »."}
       </p>
       {authorized ? (
