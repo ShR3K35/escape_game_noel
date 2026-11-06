@@ -49,7 +49,7 @@ PREPARATION → INTRO → ENQUETE → FINALE → VICTOIRE ─→ FIN
                          └──→ VICTOIRE / SECOURS (fin anticipée)      SECOURS → VICTOIRE autorisé
 ```
 
-- PREPARATION : la TV affiche l'écran d'attente « Allocution du Père Noël à venir ». Le MJ peut lancer un compte
+- PREPARATION : la TV affiche l'écran d'attente « Message rtk du pôle Nord en cours de téléchargement... ». Le MJ peut lancer un compte
   à rebours (`intro_countdown_until`, 5 s à 4 h, relançable / annulable) ; à échéance, le planificateur passe en
   INTRO. Échu pendant une coupure de plus de 2 minutes : annulé (journalisé) sans lancer l'intro.
 - Entrée en INTRO / FINALE / VICTOIRE / SECOURS : la vidéo associée (`phase_videos`) est lancée.

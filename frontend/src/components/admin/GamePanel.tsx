@@ -37,7 +37,7 @@ function IntroCountdown({ state, now }: { state: AdminState; now: number }) {
     <div className="rounded-lg border border-or-500/40 bg-black/25 p-3" data-testid="intro-countdown">
       <p className="text-sm font-bold text-or-300">⏳ Compte à rebours avant l'intro</p>
       <p className="mb-2 text-xs text-parchemin-200/70">
-        La TV affiche « Allocution du Père Noël à venir ». À zéro, la vidéo d'introduction se lance automatiquement.
+        La TV affiche « Message rtk du pôle Nord en cours de téléchargement... ». À zéro, la vidéo d'introduction se lance automatiquement.
       </p>
       {until && (
         <div className="mb-2 flex items-center gap-3">

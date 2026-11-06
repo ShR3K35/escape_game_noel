@@ -11,7 +11,7 @@ test("compte à rebours avant l'intro puis lancement automatique", async ({ brow
   const admin = await adminCtx.newPage();
 
   await tv.goto("/tv?preload=0");
-  await expect(tv.getByTestId("tv-waiting")).toContainText("Allocution du Père Noël");
+  await expect(tv.getByTestId("tv-waiting")).toContainText("Message du pôle Nord");
   await expect(tv.getByTestId("tv-countdown")).toHaveCount(0);
 
   // Le maître du jeu choisit une durée : le compte à rebours apparaît sur la TV.

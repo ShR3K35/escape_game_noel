@@ -11,7 +11,7 @@ import { formatCountdown, remainingSeconds } from "./playback";
 const FINAL_SECONDS = 10;
 
 /*
- * Le fond est la maquette « Allocution du Père Noël à venir » (1672×941) telle quelle : les effets sont posés
+ * Le fond est la maquette « Message rtk du pôle Nord en cours de téléchargement... » (1672×941) telle quelle : les effets sont posés
  * par-dessus, en % du cadre 16:9 de la TV, pour tomber au bon endroit quelle que soit la résolution.
  */
 /** Emplacement du bandeau titre dessiné dans le fond (masque du reflet doré). */
@@ -165,7 +165,7 @@ function Digits({ text, final }: { text: string; final: boolean }) {
 
 /**
  * Écran d'attente avant la vidéo d'introduction (phase PREPARATION) : le bureau du Père Noël, le bandeau
- * « Allocution du Père Noël à venir » et, quand le maître du jeu l'a lancé, la plaque du compte à rebours.
+ * « Message rtk du pôle Nord en cours de téléchargement... » et, quand le maître du jeu l'a lancé, la plaque du compte à rebours.
  * À zéro, le serveur démarre la partie et la vidéo d'intro remplace cet écran.
  */
 export function WaitingScreen({ countdownUntil, clockOffset }: { countdownUntil: string | null; clockOffset: number }) {
@@ -220,7 +220,7 @@ export function WaitingScreen({ countdownUntil, clockOffset }: { countdownUntil:
         ))}
       </div>
       {/* Texte accessible / testable (le titre est dessiné dans le fond). */}
-      <span className="sr-only">Allocution du Père Noël à venir</span>
+      <span className="sr-only">Message rtk du pôle Nord en cours de téléchargement...</span>
 
       {/* Plaque du compte à rebours */}
       {remaining !== null && (
