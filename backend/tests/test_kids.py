@@ -8,7 +8,6 @@ from app.core.game_config import load_game_config
 
 MACHINE = load_game_config(REPO_ROOT / "config").kids.machine
 BY_TEXT = {q.text: q for q in MACHINE.questions}
-STARS = [[0, 2], [1, 0], [2, 3], [3, 1], [4, 3], [5, 0]]
 TOURNEE = load_game_config(REPO_ROOT / "config").kids.tournee
 
 
@@ -25,6 +24,32 @@ def games(client):
     return {g["id"]: g for g in client.get("/api/kids/state").json()["games"]}
 
 
+def memory_answer(client, wrong=False):
+    """Réponse à la manche en cours de « La constellation », lue dans le contenu envoyé à la tablette."""
+    c = games(client)["constellation"]["content"]
+    lay = c["layout"]
+    if lay["kind"] == "placement":
+        cells = lay["cells"][:-1] + [[c2, r] for r in range(lay["rows"]) for c2 in range(lay["cols"])
+                                     if [c2, r] not in lay["cells"]][:1] if wrong else lay["cells"]
+        return {"round": c["round"], "cells": cells}
+    by_symbol: dict[str, list[int]] = {}
+    for i, s in enumerate(lay["cards"]):
+        if s != "etoile":
+            by_symbol.setdefault(s, []).append(i)
+    pairs = list(by_symbol.values())
+    if wrong:
+        pairs = pairs[:-1]
+    return {"round": c["round"], "pairs": pairs}
+
+
+def solve_constellation(client):
+    r = None
+    for _ in range(3):
+        r = attempt(client, "constellation", memory_answer(client)).json()
+        assert r["correct"]
+    return r
+
+
 def current_order(client):
     content = games(client)["machine"]["content"]
     return content, BY_TEXT[content["order"]["text"]]
@@ -38,7 +63,7 @@ def solve_machine(client):
     return r
 
 def solve_all(client):
-    assert attempt(client, "constellation", {"cells": STARS}).json()["completed"]
+    assert solve_constellation(client)["completed"]
     assert solve_machine(client)["completed"]
     assert attempt(client, "tournee", flight()).json()["completed"]
     return attempt(client, "code", {"code": "742"}).json()
@@ -47,7 +72,12 @@ def solve_all(client):
 def test_initial_kids_state(client):
     g = games(client)
     assert g["constellation"]["status"] == "available"
-    assert g["constellation"]["content"]["stars"] == STARS
+    c = g["constellation"]["content"]
+    assert (c["round"], c["total"], c["rounds"]) == (0, 3, ["placement", "paires", "placement"])
+    lay = c["layout"]
+    assert lay["kind"] == "placement" and lay["level"] == 8
+    assert len(lay["cells"]) == len(set(map(tuple, lay["cells"]))) == 8
+    assert len(set(lay["symbols"])) == 8
     assert g["machine"]["status"] == "locked" and g["machine"]["content"] is None
     assert g["code"]["status"] == "locked"
 
@@ -72,9 +102,24 @@ def test_full_progression_and_final_screen(client):
     assert games(client)["machine"]["reward"]["digit"] == 7
 
 
-def test_constellation_order_independent_and_wrong_answer(client):
-    assert attempt(client, "constellation", {"cells": STARS[:-1]}).json()["correct"] is False
-    assert attempt(client, "constellation", {"cells": list(reversed(STARS))}).json()["correct"] is True
+def test_constellation_three_rounds(client):
+    first = memory_answer(client)
+    assert attempt(client, "constellation", memory_answer(client, wrong=True)).json()["correct"] is False
+    r = attempt(client, "constellation", {**first, "cells": list(reversed(first["cells"]))}).json()
+    assert r["correct"] and not r["completed"] and r["step"] == 1
+    assert attempt(client, "constellation", first).status_code == 409  # double clic sur une manche finie
+    # manche 2 : memory de 36 cartes, 18 paires
+    lay = games(client)["constellation"]["content"]["layout"]
+    assert lay["kind"] == "paires" and len(lay["cards"]) == 36 and (lay["cols"], lay["rows"]) == (9, 4)
+    assert all(lay["cards"].count(x) == 2 for x in lay["cards"])
+    answer = memory_answer(client)
+    a, b = answer["pairs"][0][0], answer["pairs"][1][0]
+    cheat = {**answer, "pairs": [[a, b]] + answer["pairs"][2:]}  # deux cartes différentes
+    assert attempt(client, "constellation", cheat).json()["correct"] is False
+    assert attempt(client, "constellation", memory_answer(client, wrong=True)).json()["correct"] is False
+    assert attempt(client, "constellation", memory_answer(client)).json()["step"] == 2
+    r = attempt(client, "constellation", memory_answer(client)).json()
+    assert r["correct"] and r["completed"] and r["reward"]["digit"] == 4
 
 
 def test_locked_game_refused(client):
@@ -84,18 +129,48 @@ def test_locked_game_refused(client):
 def test_progressive_hints(client):
     r = None
     for _ in range(2):
-        r = attempt(client, "constellation", {"cells": [[0, 0]]}).json()
-    assert len(r["hints"]) == 1
-    for _ in range(2):
-        r = attempt(client, "constellation", {"cells": [[0, 0]]}).json()
-    assert len(r["hints"]) == 2
-    for _ in range(10):
-        r = attempt(client, "constellation", {"cells": [[0, 0]]}).json()
-    assert len(r["hints"]) == 3  # plafonné au nombre d'indices configurés
+        r = attempt(client, "constellation", {"round": 0, "cells": [[0, 0]]}).json()
+    assert r["hints"] == ["Il y a 8 symboles à retrouver : comptez-les bien !"]
+    for _ in range(12):
+        r = attempt(client, "constellation", {"round": 0, "cells": [[0, 0]]}).json()
+    assert len(r["hints"]) == 3  # puis la position de deux symboles, plafonné
+    assert all(h.startswith("Un symbole se cachait") for h in r["hints"][1:])
+    r = attempt(client, "constellation", memory_answer(client)).json()
+    assert r["hints"] == []  # nouvelle manche : plus d'indice
+
+
+def test_constellation_difficulty_set_by_admin(admin):
+    first = games(admin)["constellation"]["content"]["layout"]
+    body = {"kind": "placement", "level": 10}
+    assert admin.post("/api/admin/kids/constellation/difficulty", json=body).json()["changed"] is True
+    assert admin.post("/api/admin/kids/constellation/difficulty", json=body).json()["changed"] is False
+    for wrong, status in (({"kind": "placement", "level": 7}, 404), ({"kind": "autre", "level": 6}, 422)):
+        assert admin.post("/api/admin/kids/constellation/difficulty", json=wrong).status_code == status
+    lay = games(admin)["constellation"]["content"]["layout"]  # la manche en cours est tirée à nouveau
+    assert lay["id"] != first["id"] and len(lay["cells"]) == 10 and (lay["cols"], lay["rows"]) == (8, 4)
+    attempt(admin, "constellation", memory_answer(admin))
+    admin.post("/api/admin/kids/constellation/difficulty", json={"kind": "paires", "level": 27})
+    lay = games(admin)["constellation"]["content"]["layout"]
+    assert len(lay["cards"]) == 27 and lay["cards"][13] == "etoile" and lay["cards"].count("etoile") == 1
+    stats = {g["id"]: g for g in admin.get("/api/admin/state").json()["kids"]["games"]}["constellation"]
+    assert stats["memory"] == {"round": 2, "total": 3, "rounds": ["placement", "paires", "placement"],
+                               "placement": {"current": 10, "levels": [6, 8, 10]},
+                               "paires": {"current": 27, "levels": [27, 36, 40]}}
+    # l'étoile seule n'est pas une paire
+    assert attempt(admin, "constellation", memory_answer(admin)).json()["step"] == 2
+    admin.post("/api/admin/kids/constellation/difficulty", json={"kind": "paires", "level": 40})
+    assert games(admin)["constellation"]["content"]["round"] == 2  # manche déjà réussie conservée
+    # « Recommencer » : nouvelles manches, mêmes niveaux
+    admin.post("/api/admin/kids/constellation/reset")
+    c = games(admin)["constellation"]["content"]
+    assert c["round"] == 0 and len(c["layout"]["cells"]) == 10
+    admin.cookies.clear()
+    assert "memory" not in games(admin)["constellation"]
+    assert admin.post("/api/admin/kids/constellation/difficulty", json=body).status_code == 401
 
 
 def test_tournee_flight_checked_against_level(client):
-    attempt(client, "constellation", {"cells": STARS})
+    solve_constellation(client)
     solve_machine(client)
     content = games(client)["tournee"]["content"]
     assert content["level"] == "normal"
@@ -139,13 +214,13 @@ def test_tournee_difficulty_set_by_admin(admin):
 
 
 def test_invalid_answer_shape(client):
-    assert attempt(client, "constellation", {"cells": "abc"}).status_code == 422
+    assert attempt(client, "constellation", {"round": 0, "cells": "abc"}).status_code == 422
     assert attempt(client, "inconnu", {}).status_code == 404
 
 
 def test_completed_game_attempt_is_idempotent(client):
-    attempt(client, "constellation", {"cells": STARS})
-    r = attempt(client, "constellation", {"cells": []}).json()
+    solve_constellation(client)
+    r = attempt(client, "constellation", {"round": 0, "cells": []}).json()
     assert r["already_completed"] is True
 
 

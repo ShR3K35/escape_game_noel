@@ -6,6 +6,7 @@
  Téléphone MJ (/admin) ──┐  REST /api/admin/* (cookie de session)
  Tablette (/lutins) ─────┤  REST /api/kids/*  (essais de mini-jeux uniquement)
  TV Chromium (/tv) ──────┤  REST /api/tv/ended (fin de lecture uniquement)
+ ESP32 Matter ───────────┤  REST /api/devices/actions/{1..10} (jeton X-Device-Token)
                          │  WebSocket /ws?channel=admin|tv|kids|status (lecture seule, poussé par le serveur)
                          ▼
                ┌───────────────────────────────┐
@@ -37,6 +38,7 @@ vers uvicorn `--reload` (port 8000).
 | `services/kids.py` | mini-jeux : progression séquentielle, vérification des réponses côté serveur, indices, tirage des commandes de la machine à cadeaux (conservé en base), niveau de difficulté de la tournée du traîneau choisi par le MJ |
 | `services/schedule.py` | planning de la soirée (relatif au démarrage ou heure fixe, accélération démo) |
 | `services/container.py` | transactions, idempotence, vues par écran, sauvegarde |
+| `services/actions.py` | actions 1 à 10 déclenchées par le boîtier ESP32 Matter (journalisées ; effets à brancher dans `handlers`, voir `firmware/esp32-matter/README.md`) |
 | `services/realtime.py` | diffusion WebSocket des instantanés d'état |
 | `api/` | routes REST et WebSocket |
 | `cli.py` | `hash-password`, `check-config`, `backup`, `seed-demo` |

@@ -2,9 +2,6 @@ import { expect, test, type APIRequestContext, type Page } from "@playwright/tes
 
 import { loginAdmin, resetGame } from "./helpers";
 
-// Solutions de config/game.yaml
-const STARS = ["0,2", "1,0", "2,3", "3,1", "4,3", "5,0"];
-
 test.beforeEach(async ({ request }) => resetGame(request));
 test.use({ viewport: { width: 1180, height: 820 }, hasTouch: true });
 
@@ -19,6 +16,52 @@ async function currentOrder(request: APIRequestContext) {
   return state.kids.games.find((g: { id: string }) => g.id === "machine").current_order as { number: number; answer: number };
 }
 
+/** Manche en cours de « La constellation » (tirée au hasard par le serveur). */
+async function memoryContent(request: APIRequestContext) {
+  const state = await (await request.get("/api/kids/state")).json();
+  return state.games.find((g: { id: string }) => g.id === "constellation").content as {
+    round: number;
+    layout: { kind: "placement" | "paires"; cols: number; rows: number; cells: [number, number][]; cards: string[] };
+  };
+}
+
+/** Joue les 3 manches : placement (avec un premier essai raté), paires, placement. */
+async function playConstellation(page: Page, request: APIRequestContext) {
+  for (let round = 0; round < 3; round++) {
+    await expect(page.getByTestId("memory")).toHaveAttribute("data-round", String(round));
+    const { layout } = await memoryContent(request);
+    if (layout.kind === "placement") {
+      const cells = layout.cells.map(([c, r]) => `${c},${r}`);
+      await expect(page.locator("[data-cell]")).toHaveCount(layout.cols * layout.rows);
+      await page.getByRole("button", { name: "Je suis prêt ! 👍" }).click();
+      if (round === 0) {
+        const empty = await page.locator("[data-cell]").evaluateAll((els, sol) =>
+          els.map((e) => e.getAttribute("data-cell")!).filter((k) => !sol.includes(k)), cells);
+        for (const cell of empty.slice(0, cells.length)) await page.locator(`[data-cell="${cell}"]`).click();
+        await page.getByRole("button", { name: "✨ Valider" }).click();
+        await expect(page.getByRole("alert")).toContainText("essayez encore");
+        await page.getByRole("button", { name: "Effacer" }).click();
+      }
+      for (const cell of cells) await page.locator(`[data-cell="${cell}"]`).click();
+      await page.getByRole("button", { name: "✨ Valider" }).click();
+    } else {
+      const bySymbol = new Map<string, number[]>();
+      layout.cards.forEach((s, i) => s !== "etoile" && bySymbol.set(s, [...(bySymbol.get(s) ?? []), i]));
+      let found = 0;
+      for (const [a, b] of bySymbol.values()) {
+        await page.locator(`[data-card="${a}"]`).click();
+        await page.locator(`[data-card="${b}"]`).click();
+        // la dernière paire envoie aussitôt la manche : l'écran « Manche réussie » remplace le compteur
+        if (++found < bySymbol.size) await expect(page.getByTestId("pairs-count")).toContainText(`${found} / ${bySymbol.size}`);
+      }
+    }
+    if (round < 2) {
+      await expect(page.getByTestId("memory-between")).toContainText(`Manche ${round + 1} réussie`);
+      await page.getByRole("button", { name: /C'est parti/ }).click();
+    }
+  }
+}
+
 async function closeCelebration(page: Page) {
   await expect(page.getByRole("heading", { name: "Bravo !" })).toBeVisible();
   await page.getByRole("button", { name: "Continuer ➜" }).click();
@@ -28,15 +71,9 @@ test("les lutins terminent les quatre mini-jeux", async ({ page, request }) => {
   await page.goto("/lutins");
   await expect(page.locator('[data-game="machine"]')).toBeDisabled();
 
-  // 1. Constellation (avec un premier essai raté)
+  // 1. Constellation : 3 manches de memory (avec un premier essai raté)
   await openGame(page, "constellation");
-  await page.getByRole("button", { name: "Je suis prêt ! 👍" }).click();
-  for (const cell of ["0,0", "1,1", "2,2", "3,3", "4,0", "5,1"]) await page.locator(`[data-cell="${cell}"]`).click();
-  await page.getByRole("button", { name: "✨ Vérifier" }).click();
-  await expect(page.getByRole("alert")).toContainText("essayez encore");
-  await page.getByRole("button", { name: "Effacer" }).click();
-  for (const cell of STARS) await page.locator(`[data-cell="${cell}"]`).click();
-  await page.getByRole("button", { name: "✨ Vérifier" }).click();
+  await playConstellation(page, request);
   await closeCelebration(page);
 
   // 2. Machine à cadeaux : 8 commandes (une erreur sur la première)

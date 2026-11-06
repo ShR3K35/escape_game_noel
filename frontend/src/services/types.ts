@@ -69,13 +69,38 @@ export interface Reward {
   digit: number;
 }
 
+export type MemoryKind = "placement" | "paires";
+
+/** Manche « placement » : des symboles s'affichent puis disparaissent, on retrouve leurs cases. */
+export interface PlacementLayout {
+  kind: "placement";
+  id: string;
+  level: number;
+  cols: number;
+  rows: number;
+  memorize_seconds: number;
+  cells: [number, number][];
+  symbols: string[];
+}
+
+/** Manche « paires » : memory classique (« etoile » : carte seule, face visible). */
+export interface PairsLayout {
+  kind: "paires";
+  id: string;
+  level: number;
+  cols: number;
+  rows: number;
+  cards: string[];
+}
+
 export interface ConstellationContent {
   title: string;
   instructions: string;
-  cols: number;
-  rows: number;
-  stars: [number, number][];
-  memorize_seconds: number;
+  /** Manche en cours (à partir de 0). */
+  round: number;
+  total: number;
+  rounds: MemoryKind[];
+  layout: PlacementLayout | PairsLayout;
 }
 
 export interface MachineContent {
@@ -141,6 +166,14 @@ export interface KidsGame {
   completed_at?: string | null;
   /** Admin uniquement : commande en cours de la machine à cadeaux, avec sa réponse. */
   current_order?: { number: number; total: number; text: string; calc: string; answer: number };
+  /** Admin uniquement : manche en cours et niveaux de « La constellation ». */
+  memory?: {
+    round: number;
+    total: number;
+    rounds: MemoryKind[];
+    placement: { current: number; levels: number[] };
+    paires: { current: number; levels: number[] };
+  };
   /** Admin uniquement : niveau de la tournée du traîneau et dernier vol. */
   difficulty?: {
     current: string;

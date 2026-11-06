@@ -1,4 +1,5 @@
 """Lecture des vidéos, messages et ambiance TV."""
+import os
 
 
 def tv(client):
@@ -8,8 +9,16 @@ def tv(client):
 def test_loop_video_described(client):
     loop = tv(client)["loop"]
     assert loop["id"] == "loop_bureau"
-    assert loop["url"] == "/media/videos/00_loop_bureau.mp4"
+    assert loop["url"].startswith("/media/videos/00_loop_bureau.mp4?v=")
     assert loop["available"] is True
+
+
+def test_video_url_changes_when_file_replaced(client):
+    before = tv(client)["loop"]["url"]
+    path = client.app.state.services.game.media_dir / "videos" / "00_loop_bureau.mp4"
+    st = path.stat()
+    os.utime(path, ns=(st.st_atime_ns, st.st_mtime_ns + 5_000_000_000))
+    assert tv(client)["loop"]["url"] != before
 
 
 def test_play_available_and_missing_video(admin):

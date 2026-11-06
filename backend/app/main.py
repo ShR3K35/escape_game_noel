@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app import __version__
-from app.api import admin, auth, public, ws
+from app.api import admin, auth, devices, public, ws
 from app.core.config import Settings
 from app.core.game_config import load_game_config
 from app.core.logging import setup_logging
@@ -126,6 +126,7 @@ def create_app(settings: Settings | None = None, clock: Clock = utcnow) -> FastA
     app.include_router(auth.router)
     app.include_router(admin.router)
     app.include_router(public.router)
+    app.include_router(devices.router)
     app.include_router(ws.router)
 
     settings.media_dir.mkdir(parents=True, exist_ok=True)

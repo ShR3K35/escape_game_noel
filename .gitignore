@@ -26,3 +26,6 @@ frontend/blob-report/
 .DS_Store
 Thumbs.db
 *.tsbuildinfo
+
+# Firmware : secrets locaux
+firmware/esp32-matter/escape_noel_matter/config.h

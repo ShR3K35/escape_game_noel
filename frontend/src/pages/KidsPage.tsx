@@ -258,6 +258,8 @@ export default function KidsPage() {
               <h1 className="flex-1 text-3xl font-black text-bordeaux-800 short:text-2xl">
                 {ICONS[open.id]} {open.title}
               </h1>
+              {/* Emplacement où un jeu peut placer ses repères (ex. manches de la constellation) : place gagnée en hauteur. */}
+              <div id="game-toolbar" className="flex items-center gap-2" />
             </div>
             {open.content && "instructions" in open.content && open.id !== "machine" && open.id !== "tournee" && open.id !== "constellation" && (
               <p className="mb-3 shrink-0 text-center text-xl text-encre/80 short:mb-1 short:text-lg">{open.content.instructions}</p>

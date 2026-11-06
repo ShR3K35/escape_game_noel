@@ -5,13 +5,17 @@ import random
 from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy.orm import Session
 
-from app.core.game_config import KIDS_GAMES, AppConfig
+from app.core.game_config import KIDS_GAMES, LONE_SYMBOL, MEMORY_SYMBOLS, AppConfig
 from app.models import KidsProgress
 from app.services.common import Clock, GameError, iso, log_event
 
 
 class ConstellationAnswer(BaseModel):
-    cells: list[tuple[int, int]] = Field(max_length=60)
+    """Manche « placement » : les cases choisies ; manche « paires » : les paires trouvées (indices de cartes)."""
+
+    round: int = Field(ge=0, le=10)
+    cells: list[tuple[int, int]] | None = Field(None, max_length=60)
+    pairs: list[tuple[int, int]] | None = Field(None, max_length=30)
 
 
 class MachineAnswer(BaseModel):
@@ -53,6 +57,8 @@ class KidsService:
                 s.add(row)
             if gid == "machine" and not self._draw_valid(row):
                 self._new_draw(row)
+            if gid == "constellation" and not self._memory_valid(row):
+                self._memory_draw(row, from_round=0)
 
     def _rows(self, s: Session) -> dict[str, KidsProgress]:
         # Filtré : une ligne d'un ancien jeu restée en base ne doit pas bloquer la fin de mission.
@@ -84,6 +90,103 @@ class KidsService:
 
     def _misses(self, row: KidsProgress) -> list[int]:
         return list((row.data or {}).get("misses", []))
+
+    # ---------------------------------------------------- la constellation
+    def memory_difficulty(self, row: KidsProgress) -> dict[str, int]:
+        """Niveaux choisis par le maître du jeu (conservés en base), sinon ceux de `game.yaml`."""
+        c = self.cfg.kids.constellation
+        chosen = (row.data or {}).get("difficulty") or {}
+        placement, paires = chosen.get("placement"), chosen.get("paires")
+        return {"placement": placement if c.placement.level(placement or -1) else c.placement.difficulty,
+                "paires": paires if c.paires.level(paires or -1) else c.paires.difficulty}
+
+    def _memory_round_draw(self, kind: str, difficulty: dict[str, int]) -> dict:
+        c = self.cfg.kids.constellation
+        layout_id = f"{self.rng.getrandbits(32):08x}"
+        if kind == "placement":
+            lv = c.placement.level(difficulty["placement"])
+            cells = self.rng.sample([(x, y) for y in range(lv.rows) for x in range(lv.cols)], lv.count)
+            return {"kind": kind, "id": layout_id, "level": lv.count, "cols": lv.cols, "rows": lv.rows,
+                    "memorize_seconds": lv.memorize_seconds, "cells": [list(x) for x in sorted(cells)],
+                    "symbols": self.rng.sample(MEMORY_SYMBOLS, lv.count)}
+        lv = c.paires.level(difficulty["paires"])
+        cards = [s for s in self.rng.sample(MEMORY_SYMBOLS, lv.cards // 2) for _ in range(2)]
+        self.rng.shuffle(cards)
+        if lv.cards % 2:  # l'étoile seule, au centre du ciel
+            cards.insert(lv.cards // 2, LONE_SYMBOL)
+        return {"kind": kind, "id": layout_id, "level": lv.cards, "cols": lv.cols, "rows": lv.rows, "cards": cards}
+
+    def _memory_draw(self, row: KidsProgress, from_round: int) -> None:
+        """Tire à nouveau les manches à partir de `from_round` (les manches déjà réussies sont conservées)."""
+        data = dict(row.data or {})
+        difficulty = self.memory_difficulty(row)
+        old = data.get("rounds") or []
+        rounds = [old[i] if i < from_round and i < len(old) else self._memory_round_draw(kind, difficulty)
+                  for i, kind in enumerate(self.cfg.kids.constellation.rounds)]
+        row.data = data | {"rounds": rounds, "misses": 0}
+
+    def _memory_valid(self, row: KidsProgress) -> bool:
+        """Faux si aucun tirage n'existe ou si `game.yaml` a changé depuis (manches, niveaux)."""
+        c = self.cfg.kids.constellation
+        rounds = (row.data or {}).get("rounds") or []
+        if [r.get("kind") for r in rounds] != list(c.rounds):
+            return False
+        levels = {"placement": c.placement.level, "paires": c.paires.level}
+        return all(levels[r["kind"]](r.get("level", -1)) is not None for r in rounds)
+
+    def _memory_round(self, row: KidsProgress) -> dict:
+        """Manche en cours (la dernière si le jeu est terminé)."""
+        rounds = row.data["rounds"]
+        return rounds[min(row.step, len(rounds) - 1)]
+
+    def set_memory_difficulty(self, s: Session, kind: str, level: int) -> dict:
+        c = self.cfg.kids.constellation
+        levels = {"placement": c.placement, "paires": c.paires}[kind]
+        if levels.level(level) is None:
+            raise GameError(f"niveau inconnu : {level}", 404)
+        row = s.get(KidsProgress, "constellation")
+        if self.memory_difficulty(row)[kind] == level:
+            return {"changed": False}
+        row.data = {**(row.data or {}), "difficulty": self.memory_difficulty(row) | {kind: level}}
+        if not row.completed:  # les manches pas encore réussies passent tout de suite au nouveau niveau
+            self._memory_draw(row, from_round=row.step)
+        row.updated_at = self.clock()
+        what = f"{level} symboles à replacer" if kind == "placement" else f"memory de {level} cartes"
+        log_event(s, self.clock, "kids_difficulty", f"Maître du jeu : « {c.title} » : {what}",
+                  {"game": "constellation", "kind": kind, "level": level}, "admin")
+        return {"changed": True}
+
+    @staticmethod
+    def _where(cell: list[int], rows: int) -> str:
+        col, r = cell
+        line = ("tout en haut" if r == 0 else "tout en bas" if r == rows - 1
+                else f"sur la ligne n°{r + 1} en partant du haut")
+        return f"Un symbole se cachait {line}, dans la case n°{col + 1} en partant de la gauche."
+
+    def _memory_hints(self, row: KidsProgress) -> list[str]:
+        rnd = self._memory_round(row)
+        if row.completed or rnd["kind"] != "placement":
+            return []
+        hints = [f"Il y a {len(rnd['cells'])} symboles à retrouver : comptez-les bien !"]
+        hints += [self._where(cell, rnd["rows"]) for cell in rnd["cells"][::-1][:2]]
+        level = min(len(hints), (row.data or {}).get("misses", 0) // self.cfg.kids.attempts_per_hint)
+        return hints[:level]
+
+    def _check_memory(self, answer: ConstellationAnswer, row: KidsProgress) -> bool:
+        if answer.round != row.step:
+            raise GameError("cette manche est déjà terminée", 409)
+        rnd = self._memory_round(row)
+        if rnd["kind"] == "placement":
+            cells = answer.cells or []
+            return len(cells) == len(rnd["cells"]) and set(cells) == {tuple(x) for x in rnd["cells"]}
+        cards, used = rnd["cards"], set()
+        for a, b in answer.pairs or []:
+            if a == b or {a, b} & used or not (0 <= a < len(cards) and 0 <= b < len(cards)):
+                return False
+            if cards[a] != cards[b] or cards[a] == LONE_SYMBOL:
+                return False
+            used |= {a, b}
+        return len(used) == sum(card != LONE_SYMBOL for card in cards)
 
     # ------------------------------------------------- tournée du traîneau
     def difficulty(self, row: KidsProgress) -> str:
@@ -119,6 +222,8 @@ class KidsService:
             if row.completed or len(self._misses(row)) < self.cfg.kids.attempts_per_hint:
                 return []
             return [self._machine_order(row).hint]
+        if gid == "constellation":  # indices propres à la manche en cours
+            return self._memory_hints(row)
         hints = self._game_cfg(gid).hints
         level = min(len(hints), row.failures // self.cfg.kids.attempts_per_hint)
         return hints[:level]
@@ -133,8 +238,9 @@ class KidsService:
             return base | {"intro": c.intro, "total": c.total_orders, "eliminated": self._misses(row),
                            "order": {"text": q.text, "choices": sorted(q.choices), "level": q.level}}
         if gid == "constellation":
-            return base | {"cols": c.cols, "rows": c.rows, "stars": [list(x) for x in c.stars],
-                           "memorize_seconds": c.memorize_seconds}
+            # Les symboles de la manche sont visibles pendant la mémorisation : rien à cacher ici.
+            return base | {"round": min(row.step, len(c.rounds) - 1), "total": len(c.rounds),
+                           "rounds": list(c.rounds), "layout": self._memory_round(row)}
         if gid == "tournee":
             level = self.difficulty(row)
             return base | {"level": level, "settings": c.settings(level)}
@@ -158,6 +264,13 @@ class KidsService:
                     q = self._machine_order(row)
                     entry["current_order"] = {"number": row.step + 1, "total": c.total_orders,
                                               "text": q.text, "calc": q.calc, "answer": q.answer}
+                if gid == "constellation":
+                    chosen = self.memory_difficulty(row)
+                    entry["memory"] = {
+                        "round": min(row.step + 1, len(c.rounds)), "total": len(c.rounds), "rounds": list(c.rounds),
+                        "placement": {"current": chosen["placement"],
+                                      "levels": [lv.count for lv in c.placement.levels]},
+                        "paires": {"current": chosen["paires"], "levels": [lv.cards for lv in c.paires.levels]}}
                 if gid == "tournee":
                     entry["difficulty"] = {
                         "current": self.difficulty(row), "last_run": (row.data or {}).get("last"),
@@ -175,7 +288,7 @@ class KidsService:
     def _check(self, gid: str, answer: BaseModel, row: KidsProgress) -> bool:
         c = self._game_cfg(gid)
         if gid == "constellation":
-            return set(answer.cells) == set(c.stars) and len(answer.cells) == len(c.stars)
+            return self._check_memory(answer, row)
         if gid == "machine":
             if answer.order != row.step:
                 raise GameError("cette commande est déjà terminée", 409)
@@ -216,6 +329,10 @@ class KidsService:
                 row.step += 1
                 row.data = {**row.data, "misses": []}
                 finished = row.step >= self.cfg.kids.machine.total_orders
+            elif gid == "constellation":
+                row.step += 1
+                row.data = {**row.data, "misses": 0}
+                finished = row.step >= len(self.cfg.kids.constellation.rounds)
             else:
                 finished = True
             if finished:
@@ -223,13 +340,16 @@ class KidsService:
                 log_event(s, self.clock, "kids_completed", f"Lutins : « {title} » réussi !",
                           {"game": gid, "attempts": row.attempts}, "kids")
             else:
-                log_event(s, self.clock, "kids_step", f"Lutins : « {title} » commande {row.step} réussie",
+                what = f"manche {row.step}" if gid == "constellation" else f"commande {row.step}"
+                log_event(s, self.clock, "kids_step", f"Lutins : « {title} » {what} réussie",
                           {"game": gid, "step": row.step}, "kids")
         else:
             row.failures += 1
             if gid == "machine" and answer.answer in self._machine_order(row).choices \
                     and answer.answer not in self._misses(row):
                 row.data = {**row.data, "misses": [*self._misses(row), answer.answer]}
+            if gid == "constellation":
+                row.data = {**row.data, "misses": row.data.get("misses", 0) + 1}
             detail = ""
             if gid == "tournee":
                 detail = (f" ({round(answer.progress * 100)} % du parcours, {answer.hits} choc(s), "
@@ -251,6 +371,9 @@ class KidsService:
         if row.game_id == "machine":
             row.step = self.cfg.kids.machine.total_orders
             row.data = {**row.data, "misses": []}
+        if row.game_id == "constellation":
+            row.step = len(self.cfg.kids.constellation.rounds)
+            row.data = {**row.data, "misses": 0}
         if all(r.completed for r in self._rows(s).values()):
             log_event(s, self.clock, "kids_all_completed", "Les lutins ont terminé leur mission !", None, "kids")
 
@@ -276,6 +399,8 @@ class KidsService:
         row.updated_at = self.clock()
         if gid == "machine":  # nouvelles commandes à chaque réinitialisation
             self._new_draw(row)
+        if gid == "constellation":  # nouvelles manches, mais le niveau choisi par le maître du jeu est conservé
+            self._memory_draw(row, from_round=0)
         if gid == "tournee":  # le niveau choisi par le maître du jeu est conservé
             row.data = {"difficulty": row.data["difficulty"]} if (row.data or {}).get("difficulty") else None
         if log_it:

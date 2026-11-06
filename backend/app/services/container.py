@@ -15,6 +15,7 @@ from app import __version__
 from app.core.config import Settings
 from app.core.game_config import AppConfig
 from app.models import EventLog, ProcessedCommand
+from app.services.actions import ActionsService
 from app.services.common import Clock, iso, log_event
 from app.services.game import AMBIENTS, GameService
 from app.services.kids import KidsService
@@ -34,6 +35,7 @@ class Services:
         self.game = GameService(cfg, settings.media_dir, clock)
         self.kids = KidsService(cfg, clock)
         self.schedule = ScheduleService(cfg, self.game, clock, self.time_scale)
+        self.actions = ActionsService(clock)
         # Sérialise les commandes : une seule mutation à la fois.
         self.lock = asyncio.Lock()
 

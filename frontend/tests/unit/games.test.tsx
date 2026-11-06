@@ -21,25 +21,53 @@ describe("Constellation", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
-  const content: ConstellationContent = {
-    title: "c", instructions: "i", cols: 3, rows: 3, stars: [[0, 0], [2, 1]], memorize_seconds: 3,
+  const placement: ConstellationContent = {
+    title: "c", instructions: "i", round: 0, total: 3, rounds: ["placement", "paires", "placement"],
+    layout: { kind: "placement", id: "a1", level: 2, cols: 3, rows: 3, memorize_seconds: 3, cells: [[0, 0], [2, 1]], symbols: ["sapin", "renne"] },
+  };
+  const pairs: ConstellationContent = {
+    ...placement, round: 1,
+    layout: { kind: "paires", id: "b2", level: 5, cols: 3, rows: 2, cards: ["sapin", "renne", "etoile", "renne", "sapin"] },
   };
 
-  it("montre puis cache les étoiles, et envoie les cases choisies", async () => {
-    const submit = vi.fn().mockResolvedValue(ok);
-    render(<ConstellationGame game={game("constellation", content)} submit={submit} />);
-    expect(screen.getAllByLabelText(/étoile/)).toHaveLength(2);
+  it("montre puis cache les symboles, et envoie les cases choisies", async () => {
+    const submit = vi.fn().mockResolvedValue({ ...ok, completed: false, step: 1 });
+    render(<ConstellationGame game={game("constellation", placement)} submit={submit} />);
+    expect(screen.getAllByLabelText(/symbole/)).toHaveLength(2);
     for (let i = 0; i < 4; i++) act(() => vi.advanceTimersByTime(1000)); // décompte seconde par seconde
-    expect(screen.queryAllByLabelText(/étoile/)).toHaveLength(0);
+    expect(screen.queryAllByLabelText(/symbole/)).toHaveLength(0);
     fireEvent.click(screen.getByLabelText("case 1-1"));
     fireEvent.click(screen.getByLabelText("case 3-2"));
-    await act(async () => fireEvent.click(screen.getByText("✨ Vérifier")));
-    expect(submit).toHaveBeenCalledWith({ cells: [[0, 0], [2, 1]] });
+    await act(async () => fireEvent.click(screen.getByText("✨ Valider")));
+    expect(submit).toHaveBeenCalledWith({ round: 0, cells: [[0, 0], [2, 1]] });
+    // manche réussie : écran d'attente jusqu'à l'arrivée de la manche suivante
+    expect(screen.getByTestId("memory-between")).toHaveTextContent("Manche 1 réussie");
+    expect(screen.getByText(/C'est parti/)).toBeDisabled();
+  });
+
+  it("memory : retourne les cartes deux par deux et envoie les paires", async () => {
+    const submit = vi.fn().mockResolvedValue({ ...ok, completed: false, step: 2 });
+    render(<ConstellationGame game={game("constellation", pairs)} submit={submit} />);
+    const card = (i: number) => screen.getByLabelText(new RegExp(`^carte ${i + 1}( |$)`));
+    expect(card(2)).toBeDisabled(); // l'étoile seule, face visible
+    fireEvent.click(card(0));
+    fireEvent.click(card(1)); // sapin / renne : se retournent
+    expect(card(1)).toHaveAttribute("data-symbol", "renne");
+    act(() => vi.advanceTimersByTime(1200));
+    expect(card(1)).not.toHaveAttribute("data-symbol");
+    fireEvent.click(card(0));
+    fireEvent.click(card(4));
+    act(() => vi.advanceTimersByTime(500));
+    expect(screen.getByTestId("pairs-count")).toHaveTextContent("1 / 2");
+    fireEvent.click(card(1));
+    fireEvent.click(card(3));
+    await act(async () => vi.advanceTimersByTime(500));
+    expect(submit).toHaveBeenCalledWith({ round: 1, pairs: [[0, 4], [1, 3]] });
   });
 
   it("affiche les indices", () => {
-    render(<ConstellationGame game={game("constellation", content, { hints: ["Il y a 2 étoiles"] })} submit={vi.fn()} />);
-    expect(screen.getByText(/Il y a 2 étoiles/)).toBeInTheDocument();
+    render(<ConstellationGame game={game("constellation", placement, { hints: ["Il y a 2 symboles"] })} submit={vi.fn()} />);
+    expect(screen.getByText(/Il y a 2 symboles/)).toBeInTheDocument();
   });
 });
 

@@ -155,16 +155,31 @@ kids:
 
   constellation:
     title: "La constellation"
-    instructions: "Regardez bien les étoiles… puis replacez-les dans le ciel !"
-    cols: 6
-    rows: 4
-    memorize_seconds: 8
-    stars: [[0, 2], [1, 0], [2, 3], [3, 1], [4, 3], [5, 0]]
+    instructions: "Trois épreuves de mémoire : retenez bien où se cachent les symboles… puis retrouvez les paires !"
+    # Manches jouées dans l'ordre (3 en tout) :
+    #   placement  des symboles s'affichent puis disparaissent : touchez les cases où ils se trouvaient, puis validez
+    #   paires     memory classique : retournez les cartes deux par deux pour reconstituer toutes les paires
+    # Les positions et les cartes sont tirées au hasard à chaque partie.
+    rounds: [placement, paires, placement]
+    # ───────────── DIFFICULTÉ ─────────────
+    # Valeurs par défaut. Le maître du jeu peut en changer EN DIRECT dans l'onglet « Lutins » de l'admin :
+    # le choix s'applique aussitôt aux manches pas encore réussies (elles sont tirées à nouveau).
+    placement:
+      difficulty: 8            # nombre de symboles à replacer
+      levels:
+        # Grilles larges et basses : la tablette est en paysage, la hauteur limite la taille des cases.
+        - { count: 6, cols: 7, rows: 4, memorize_seconds: 10 }
+        - { count: 8, cols: 8, rows: 4, memorize_seconds: 12 }
+        - { count: 10, cols: 8, rows: 4, memorize_seconds: 15 }
+    paires:
+      difficulty: 36           # nombre de cartes (impair : l'étoile dorée reste seule au centre, face visible)
+      levels:
+        # Plateau rectangulaire (paysage) : 9×3 (étoile au centre), 9×4, 10×4.
+        - { cards: 27, cols: 9 }
+        - { cards: 36, cols: 9 }
+        - { cards: 40, cols: 10 }
     reward: { symbol: "⭐", label: "l'Étoile du Berger", digit: 4 }
-    hints:
-      - "Il y a 6 étoiles en tout. Comptez-les bien !"
-      - "Une étoile se cache tout en haut à droite du ciel."
-      - "Une autre étoile est tout en haut, presque à gauche."
+    # Indices des manches « placement » (tous les 2 essais manqués) : nombre de symboles, puis leurs positions.
 
   machine:
     title: "La machine à cadeaux"

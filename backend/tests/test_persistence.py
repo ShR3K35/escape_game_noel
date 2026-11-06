@@ -3,8 +3,7 @@
 import sqlite3
 
 from tests.conftest import PASSWORD
-
-STARS = [[0, 2], [1, 0], [2, 3], [3, 1], [4, 3], [5, 0]]
+from tests.test_kids import attempt, games, memory_answer
 
 
 def login(c):
@@ -19,7 +18,9 @@ def test_state_survives_restart(make_client):
     first.post("/api/admin/teams/rouge", json={"status": "VALIDEE"})
     first.post("/api/admin/teams/or", json={"status": "EN_COURS"})
     first.post("/api/admin/schedule/relance", json={"at": "20:40", "enabled": False})
-    first.post("/api/kids/games/constellation/attempt", json={"answer": {"cells": STARS}})
+    assert attempt(first, "constellation", memory_answer(first)).json()["step"] == 1
+    memory = games(first)["constellation"]["content"]["layout"]
+    first.post("/api/admin/kids/constellation/complete")
     first.post("/api/kids/games/machine/attempt", json={"answer": {"order": 0, "answer": 9999}})
     order = first.get("/api/kids/state").json()["games"][1]["content"]["order"]
     first.__exit__(None, None, None)
@@ -33,6 +34,9 @@ def test_state_survives_restart(make_client):
     assert teams == {"rouge": "VALIDEE", "verte": "NON_COMMENCE", "bleue": "NON_COMMENCE", "or": "EN_COURS"}
     kids = {g["id"]: g for g in state["kids"]["games"]}
     assert kids["constellation"]["status"] == "completed"
+    assert second.get("/api/admin/state").json()["kids"]["games"][0]["step"] == 3
+    restored = second.get("/api/kids/state").json()["games"][0]["content"]
+    assert restored["layout"]["id"] != memory["id"] and restored["round"] == 2  # manche 3, tirée avant l'arrêt
     assert kids["machine"]["failures"] == 1
     assert kids["machine"]["content"]["order"] == order  # mêmes commandes tirées après redémarrage
     relance = next(i for i in state["schedule"] if i["id"] == "relance")

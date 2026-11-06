@@ -48,6 +48,44 @@ function DifficultyPicker({ difficulty }: { difficulty: Difficulty }) {
   );
 }
 
+type Memory = NonNullable<KidsGame["memory"]>;
+
+/** Niveaux de « La constellation » : appliqués tout de suite aux manches pas encore réussies. */
+function MemoryPicker({ memory, done }: { memory: Memory; done: boolean }) {
+  const rows = [
+    { kind: "placement" as const, title: "Symboles à replacer", unit: "symboles", ...memory.placement },
+    { kind: "paires" as const, title: "Memory (paires)", unit: "cartes", ...memory.paires },
+  ];
+  return (
+    <div className="mt-2 rounded bg-black/30 p-2" data-testid="admin-memory-difficulty">
+      <p className="text-xs font-bold text-parchemin-200/90">
+        {done ? `${memory.total} manches réussies` : `Manche ${memory.round} / ${memory.total}`} ·{" "}
+        {memory.rounds.join(" → ")}
+      </p>
+      {rows.map((row) => (
+        <div key={row.kind} className="mt-2">
+          <p className="text-xs text-parchemin-200/80">{row.title} (appliqué aussitôt aux manches non terminées) :</p>
+          <div className="mt-1 grid gap-2" style={{ gridTemplateColumns: `repeat(${row.levels.length}, minmax(0, 1fr))` }}>
+            {row.levels.map((level) => (
+              <ActionButton
+                key={level}
+                variant={level === row.current ? "green" : undefined}
+                disabled={level === row.current}
+                onAction={() => api.kidsMemoryDifficulty(row.kind, level)}
+                success={`Constellation : ${level} ${row.unit}`}
+                className={level === row.current ? "ring-2 ring-or-400 disabled:opacity-100" : ""}
+              >
+                {level === row.current ? "✓ " : ""}
+                {level} {row.unit}
+              </ActionButton>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function KidsPanel({ state }: { state: AdminState }) {
   const kids = state.kids;
   return (
@@ -79,6 +117,7 @@ export function KidsPanel({ state }: { state: AdminState }) {
                   </span>
                 </p>
               )}
+              {g.memory && <MemoryPicker memory={g.memory} done={g.status === "completed"} />}
               {g.difficulty && <DifficultyPicker difficulty={g.difficulty} />}
               <div className="mt-2 grid grid-cols-2 gap-2">
                 <ActionButton

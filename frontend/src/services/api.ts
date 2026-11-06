@@ -68,6 +68,8 @@ export const api = {
   kidsComplete: (gameId: KidsGameId) => post(`/api/admin/kids/${gameId}/complete`),
   kidsReset: (gameId: KidsGameId) => post(`/api/admin/kids/${gameId}/reset`),
   kidsDifficulty: (level: string) => post("/api/admin/kids/tournee/difficulty", { level }),
+  kidsMemoryDifficulty: (kind: "placement" | "paires", level: number) =>
+    post("/api/admin/kids/constellation/difficulty", { kind, level }),
   kidsResetAll: () => post("/api/admin/kids/reset", { confirm: true }),
   attempt: (gameId: KidsGameId, answer: unknown) =>
     request<AttemptResult>("POST", `/api/kids/games/${gameId}/attempt`, { answer }),

@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     session_hours: int = 12
     cookie_secure: bool = False
 
+    # Jeton partagé avec le boîtier ESP32 Matter (en-tête X-Device-Token). Obligatoire en production.
+    device_token: str = ""
+
     demo_mode: bool = False
     time_scale: float | None = None
     scheduler_enabled: bool = True

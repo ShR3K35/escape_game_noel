@@ -89,24 +89,87 @@ class RewardCfg(BaseModel):
     digit: int = Field(ge=0, le=9)
 
 
+# Symboles des cartes de « La constellation » (illustrations dans frontend/src/assets/constellation/).
+# L'étoile dorée est réservée à la carte seule d'un memory au nombre de cartes impair.
+MEMORY_SYMBOLS = (
+    "sapin", "boule", "sucre-orge", "bonhomme-neige", "cloche", "cadeau", "bonnet", "chaussette",
+    "renne", "flocon", "bougie", "houx", "pain-epices", "lune", "traineau", "moufle", "chocolat",
+    "pomme-pin", "ourson", "lanterne", "cheval-bascule", "maison-pain-epices", "tambour",
+)
+LONE_SYMBOL = "etoile"
+
+
+class PlacementLevelCfg(BaseModel):
+    """Manche « symboles à replacer » : des symboles s'affichent puis disparaissent, on retrouve leurs cases."""
+
+    count: int = Field(ge=2, le=len(MEMORY_SYMBOLS))
+    cols: int = Field(ge=3, le=10)
+    rows: int = Field(ge=3, le=6)
+    memorize_seconds: int = Field(10, ge=2, le=60)
+
+    @model_validator(mode="after")
+    def _fits(self):
+        if self.count * 2 > self.cols * self.rows:
+            raise ValueError(f"{self.count} symboles : grille {self.cols}×{self.rows} trop petite")
+        return self
+
+
+class PairsLevelCfg(BaseModel):
+    """Manche « paires » : un memory classique ; avec un nombre impair, l'étoile reste seule au centre."""
+
+    cards: int = Field(ge=4, le=len(MEMORY_SYMBOLS) * 2 + 1)
+    cols: int = Field(ge=3, le=10)
+
+    @property
+    def rows(self) -> int:
+        return -(-self.cards // self.cols)
+
+    @model_validator(mode="after")
+    def _fits(self):
+        if self.rows > 7 or self.cards <= self.cols * (self.rows - 1):
+            raise ValueError(f"{self.cards} cartes : {self.cols} colonnes ne conviennent pas")
+        return self
+
+
+class PlacementCfg(BaseModel):
+    difficulty: int  # nombre de symboles par défaut ; modifiable en direct dans l'onglet Lutins de l'admin
+    levels: list[PlacementLevelCfg] = Field(min_length=1, max_length=6)
+
+    def level(self, count: int) -> PlacementLevelCfg | None:
+        return next((lv for lv in self.levels if lv.count == count), None)
+
+    @model_validator(mode="after")
+    def _default(self):
+        if len({lv.count for lv in self.levels}) != len(self.levels):
+            raise ValueError("niveaux de placement dupliqués")
+        if self.level(self.difficulty) is None:
+            raise ValueError(f"difficulté par défaut {self.difficulty} absente des niveaux de placement")
+        return self
+
+
+class PairsCfg(BaseModel):
+    difficulty: int  # nombre de cartes par défaut ; modifiable en direct dans l'onglet Lutins de l'admin
+    levels: list[PairsLevelCfg] = Field(min_length=1, max_length=6)
+
+    def level(self, cards: int) -> PairsLevelCfg | None:
+        return next((lv for lv in self.levels if lv.cards == cards), None)
+
+    @model_validator(mode="after")
+    def _default(self):
+        if len({lv.cards for lv in self.levels}) != len(self.levels):
+            raise ValueError("niveaux de paires dupliqués")
+        if self.level(self.difficulty) is None:
+            raise ValueError(f"difficulté par défaut {self.difficulty} absente des niveaux de paires")
+        return self
+
+
 class ConstellationCfg(BaseModel):
     title: str
     instructions: str
-    cols: int = Field(ge=3, le=8)
-    rows: int = Field(ge=3, le=6)
-    stars: list[tuple[int, int]]
-    memorize_seconds: int = Field(8, ge=2, le=60)
+    rounds: list[Literal["placement", "paires"]] = Field(min_length=1, max_length=6)
+    placement: PlacementCfg
+    paires: PairsCfg
     reward: RewardCfg
-    hints: list[str] = []
-
-    @model_validator(mode="after")
-    def _stars_in_grid(self):
-        for c, r in self.stars:
-            if not (0 <= c < self.cols and 0 <= r < self.rows):
-                raise ValueError(f"étoile hors grille : {(c, r)}")
-        if len(set(self.stars)) != len(self.stars):
-            raise ValueError("étoiles dupliquées")
-        return self
 
 
 _CALC = re.compile(r"^[0-9 +\-×()]+$")

@@ -171,3 +171,18 @@
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
 }
+
+/* La constellation : cartes du memory retournées en 3D (transform uniquement). */
+.memory-card { perspective: 600px; border-radius: 0.9rem; }
+.memory-card-inner {
+  position: relative; display: block; width: 100%; height: 100%; border-radius: inherit;
+  transform-style: preserve-3d; transition: transform 0.35s ease-out;
+}
+.memory-card-inner.is-up { transform: rotateY(180deg); }
+.memory-card-face {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  border-radius: inherit; backface-visibility: hidden; -webkit-backface-visibility: hidden;
+  box-shadow: 0 3px 8px rgb(0 0 0 / 0.45);
+}
+.memory-card-front { transform: rotateY(180deg); }
+.memory-card-front.is-found { box-shadow: 0 0 0 4px #ffd76a, 0 0 16px rgb(255 215 106 / 0.8); }

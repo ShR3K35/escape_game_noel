@@ -196,12 +196,20 @@ class GameService:
     def video_available(self, file: str) -> bool:
         return (self.media_dir / "videos" / file).is_file()
 
+    def video_url(self, file: str) -> str:
+        """URL versionnée par la date de modification : remplacer un fichier invalide le cache de la TV."""
+        path = self.media_dir / "videos" / file
+        try:
+            return f"/media/videos/{file}?v={path.stat().st_mtime_ns // 1_000_000}"
+        except OSError:
+            return f"/media/videos/{file}"
+
     def video_payload(self, video_id: str) -> dict:
         v = self.cfg.video(video_id)
         return {
             "id": v.id,
             "title": v.title,
-            "url": f"/media/videos/{v.file}",
+            "url": self.video_url(v.file),
             "file": v.file,
             "available": self.video_available(v.file),
             "fallback_text": v.fallback_text,
@@ -329,7 +337,7 @@ class GameService:
         if st.tv_message_id and st.tv_message_until and st.tv_message_until > self.clock():
             message = {"id": st.tv_message_id, "title": st.tv_message_title, "text": st.tv_message_text,
                        "until": iso(st.tv_message_until)}
-        preload = [f"/media/videos/{v.file}" for v in self.cfg.videos if self.video_available(v.file)]
+        preload = [self.video_url(v.file) for v in self.cfg.videos if self.video_available(v.file)]
         countdown = None
         if st.phase == "PREPARATION" and st.intro_countdown_until:
             countdown = {"until": iso(st.intro_countdown_until)}

@@ -33,7 +33,10 @@ def test_sleigh_code_matches_rewards():
     lambda d: d["kids"]["machine"]["questions"][0].update(answer=21),
     lambda d: d["kids"]["machine"]["questions"][0].update(calc="40 / 2"),
     lambda d: d["kids"]["machine"].update(orders_per_level=[20, 3, 2]),
-    lambda d: d["kids"]["constellation"]["stars"].append([9, 9]),
+    lambda d: d["kids"]["constellation"]["placement"].update(difficulty=7),  # niveau absent
+    lambda d: d["kids"]["constellation"]["placement"]["levels"][0].update(count=15),  # grille 7×4 trop petite
+    lambda d: d["kids"]["constellation"]["paires"]["levels"][0].update(cards=60),  # pas assez de symboles
+    lambda d: d["kids"]["constellation"].update(rounds=["placement", "cache-cache"]),
     lambda d: d["kids"]["tournee"].update(duration=150),  # 2 minutes maximum
     lambda d: d["kids"]["tournee"]["levels"]["facile"].update(gifts_required=90),  # plus que les cadeaux proposés
     lambda d: d["kids"]["tournee"].update(difficulty="extreme"),

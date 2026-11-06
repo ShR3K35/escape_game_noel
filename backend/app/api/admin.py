@@ -51,6 +51,11 @@ class DifficultyBody(BaseModel):
     level: str = Field(pattern=r"^[a-z0-9_-]{1,20}$")
 
 
+class MemoryDifficultyBody(BaseModel):
+    kind: Literal["placement", "paires"]
+    level: int = Field(ge=1, le=99)
+
+
 class ScheduleBody(BaseModel):
     at: str | None = Field(None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
     enabled: bool | None = None
@@ -153,6 +158,11 @@ async def kids_reset_all(body: Confirm, request: Request, svc=Depends(services))
 @router.post("/kids/tournee/difficulty")
 async def kids_difficulty(body: DifficultyBody, request: Request, svc=Depends(services)):
     return await command(request, lambda s: svc.kids.set_difficulty(s, body.level))
+
+
+@router.post("/kids/constellation/difficulty")
+async def kids_memory_difficulty(body: MemoryDifficultyBody, request: Request, svc=Depends(services)):
+    return await command(request, lambda s: svc.kids.set_memory_difficulty(s, body.kind, body.level))
 
 
 @router.post("/kids/{game_id}/complete")
