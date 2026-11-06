@@ -1,24 +1,39 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  KINDS, LANES, SLEIGH_X, blockedLanes, createWorld, laneFromY, livesLeft, setLane, sleighBox, speedAt, step, type World,
+  KINDS, LANES, SLEIGH_X, blockedLanes, createWorld, enoughGifts, laneFromY, livesLeft, setLane, sleighBox, speedAt, step, type World,
 } from "../../src/games/tournee/engine";
 import type { TourneeSettings } from "../../src/services/types";
 
+const BASE = { duration: 120, gifts_per_gap: 2 };
+// Niveaux de config/game.yaml
 const LEVELS: Record<string, TourneeSettings> = {
-  facile: { label: "Facile", duration: 60, lives: 5, speed_start: 0.22, speed_end: 0.3, gap_start: 2.6, gap_end: 1.9, double_chance: 0, gifts: true },
-  normal: { label: "Normal", duration: 90, lives: 4, speed_start: 0.26, speed_end: 0.38, gap_start: 2.2, gap_end: 1.5, double_chance: 0.25, gifts: true },
-  difficile: { label: "Difficile", duration: 120, lives: 3, speed_start: 0.3, speed_end: 0.48, gap_start: 1.8, gap_end: 1.15, double_chance: 0.45, gifts: true },
-  // Plus dur que tout ce que propose game.yaml : le jeu doit rester jouable.
-  extreme: { label: "x", duration: 120, lives: 1, speed_start: 1, speed_end: 1, gap_start: 0.8, gap_end: 0.8, double_chance: 1, gifts: true },
+  facile: { ...BASE, label: "Facile", lives: 5, gifts_required: 25, speed_start: 0.2, speed_end: 0.28, gap_start: 2.4, gap_end: 2.0, double_chance: 0 },
+  normal: { ...BASE, label: "Normal", lives: 4, gifts_required: 30, speed_start: 0.26, speed_end: 0.38, gap_start: 2.2, gap_end: 1.6, double_chance: 0.25 },
+  difficile: { ...BASE, label: "Difficile", lives: 3, gifts_required: 40, speed_start: 0.32, speed_end: 0.5, gap_start: 1.9, gap_end: 1.3, double_chance: 0.45 },
 };
+// Plus dur que tout ce que propose game.yaml : le jeu doit rester jouable.
+const EXTREME: TourneeSettings = { ...BASE, label: "x", lives: 1, gifts_required: 0, speed_start: 1, speed_end: 1, gap_start: 0.8, gap_end: 0.8, double_chance: 1 };
 
 const DT = 1 / 60;
 
-/** Pilote automatique : regarde 0,6 s devant lui et rejoint le couloir libre le plus proche (comme un enfant attentif). */
-function autopilot(w: World) {
+/**
+ * Pilote automatique (comme un enfant attentif) : regarde 0,6 s devant lui, rejoint le couloir libre le plus proche,
+ * et va chercher le prochain cadeau quand la voie est dégagée.
+ */
+function autopilot(w: World, collect = true) {
   const me = sleighBox(w);
   const blocked = blockedLanes(w, me.x0, me.x1 + speedAt(w) * 0.6);
+  const target = collect ? w.bonuses.find((b) => !b.taken && b.x > me.x0 - 0.02) : undefined;
+  if (target && target.x < me.x1 + speedAt(w) * 1.2) {
+    const path = [w.lane, target.lane].sort();
+    let clear = true;
+    for (let l = path[0]; l <= path[1]; l++) if (blocked.has(l)) clear = false;
+    if (clear) {
+      setLane(w, target.lane);
+      return;
+    }
+  }
   if (!blocked.has(w.lane)) return;
   const free = [...Array(LANES).keys()].filter((l) => !blocked.has(l));
   free.sort((a, b) => Math.abs(a - w.y) - Math.abs(b - w.y));
@@ -36,7 +51,7 @@ function fly(level: TourneeSettings, seed: number, pilot: (w: World) => void, as
 }
 
 describe("moteur de la tournée", () => {
-  it("un pilote attentif arrive toujours au bout, sans aucun choc, à tous les niveaux", () => {
+  it("un pilote attentif arrive toujours au bout, sans choc et avec assez de cadeaux, à tous les niveaux", () => {
     for (const [name, level] of Object.entries(LEVELS)) {
       for (const aspect of [1.6, 2.4, 3]) {
         for (let seed = 1; seed <= 15; seed++) {
@@ -44,9 +59,14 @@ describe("moteur de la tournée", () => {
           expect(w.status, `${name} graine ${seed} format ${aspect}`).toBe("won");
           expect(w.hits, `${name} graine ${seed} format ${aspect}`).toBe(0);
           expect(w.t).toBe(level.duration);
+          expect(w.gifts, `${name} graine ${seed} format ${aspect}`).toBeGreaterThanOrEqual(level.gifts_required);
         }
       }
     }
+  });
+
+  it("même un niveau extrême reste jouable", () => {
+    for (let seed = 1; seed <= 10; seed++) expect(fly(EXTREME, seed, (w) => autopilot(w, false)).hits).toBe(0);
   });
 
   it("il reste toujours au moins un couloir libre", () => {
@@ -78,7 +98,15 @@ describe("moteur de la tournée", () => {
     expect(w.hits).toBe(1);
   });
 
-  it("les cadeaux bonus se ramassent et ne gênent pas", () => {
+  it("la hotte est pleine au 25e cadeau (niveau facile)", () => {
+    const w = createWorld(LEVELS.facile, 2.4, 1);
+    w.gifts = 24;
+    w.bonuses.push({ id: 51, x: SLEIGH_X - 0.01, lane: 1, taken: false });
+    expect(step(w, DT)).toContain("full");
+    expect(enoughGifts(w)).toBe(true);
+  });
+
+  it("les cadeaux se ramassent", () => {
     const w = createWorld(LEVELS.facile, 2.4, 1);
     w.bonuses.push({ id: 50, x: SLEIGH_X - 0.01, lane: 1, taken: false });
     expect(step(w, DT)).toContain("gift");

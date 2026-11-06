@@ -182,20 +182,21 @@ class TourneeLevelCfg(BaseModel):
     """Un niveau de difficulté de « La tournée du traîneau » (endless runner à 3 couloirs)."""
 
     label: str = Field(min_length=1, max_length=30)
-    duration: int = Field(ge=15, le=120)               # durée du vol en secondes : 2 minutes maximum
     lives: int = Field(ge=1, le=9)                     # chocs autorisés avant de devoir recommencer
     speed_start: float = Field(ge=0.1, le=1.0)         # vitesse au départ, en largeurs d'écran par seconde
     speed_end: float = Field(ge=0.1, le=1.0)           # vitesse à l'arrivée (accélération progressive)
     gap_start: float = Field(ge=0.8, le=6.0)           # secondes entre deux obstacles au départ
     gap_end: float = Field(ge=0.8, le=6.0)             # … et à l'arrivée
     double_chance: float = Field(0.0, ge=0.0, le=1.0)  # probabilité qu'un obstacle bloque 2 couloirs sur 3
-    gifts: bool = True                                 # cadeaux bonus à attraper (pour le plaisir, sans effet)
+    gifts_required: int = Field(ge=0, le=150)          # cadeaux à attraper pendant le vol pour réussir
+    gifts_per_gap: int = Field(2, ge=1, le=3)          # cadeaux alignés entre deux obstacles (même couloir)
 
 
 class TourneeCfg(BaseModel):
     title: str
     instructions: str
     difficulty: str  # niveau par défaut ; modifiable en direct dans l'onglet Lutins de l'admin
+    duration: int = Field(120, ge=30, le=120)  # durée du vol, identique à tous les niveaux : 2 minutes maximum
     levels: dict[str, TourneeLevelCfg] = Field(min_length=1, max_length=6)
     reward: RewardCfg
     hints: list[str] = []
@@ -207,7 +208,17 @@ class TourneeCfg(BaseModel):
                 raise ValueError(f"identifiant de niveau invalide : {key}")
         if self.difficulty not in self.levels:
             raise ValueError(f"difficulté par défaut « {self.difficulty} » absente de levels")
+        # Une rangée de cadeaux apparaît entre deux obstacles : il faut en proposer bien plus que le nombre demandé.
+        for key, lv in self.levels.items():
+            offered = self.duration / max(lv.gap_start, lv.gap_end) * lv.gifts_per_gap
+            if lv.gifts_required > offered * 0.5:
+                raise ValueError(f"niveau {key} : {lv.gifts_required} cadeaux demandés, trop peu en proposés "
+                                 f"(au moins {int(offered)} en {self.duration} s)")
         return self
+
+    def settings(self, level: str) -> dict:
+        """Réglages envoyés à la tablette : ceux du niveau, plus la durée (commune à tous les niveaux)."""
+        return self.levels[level].model_dump() | {"duration": self.duration}
 
 
 class CodeCfg(BaseModel):

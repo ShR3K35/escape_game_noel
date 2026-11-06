@@ -91,14 +91,18 @@ export interface MachineContent {
 /** Réglages d'un niveau de « La tournée du traîneau » (voir config/game.yaml). */
 export interface TourneeSettings {
   label: string;
+  /** Durée du vol (s) : la même à tous les niveaux. */
   duration: number;
+  /** Cadeaux à attraper pour réussir. */
+  gifts_required: number;
   lives: number;
   speed_start: number;
   speed_end: number;
   gap_start: number;
   gap_end: number;
   double_chance: number;
-  gifts: boolean;
+  /** Cadeaux alignés entre deux obstacles. */
+  gifts_per_gap: number;
 }
 
 export interface TourneeContent {
@@ -141,7 +145,8 @@ export interface KidsGame {
   difficulty?: {
     current: string;
     last_run: TourneeRun | null;
-    levels: { id: string; label: string; duration: number; lives: number }[];
+    duration: number;
+    levels: { id: string; label: string; lives: number; gifts_required: number }[];
   };
 }
 

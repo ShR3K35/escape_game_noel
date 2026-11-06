@@ -13,8 +13,8 @@ TOURNEE = load_game_config(REPO_ROOT / "config").kids.tournee
 
 
 def flight(level="normal", **kw):
-    lv = TOURNEE.levels.get(level, TOURNEE.levels["normal"])
-    return {"level": level, "finished": True, "hits": 0, "seconds": lv.duration, "progress": 1.0, "gifts": 3} | kw
+    return {"level": level, "finished": True, "hits": 0, "seconds": TOURNEE.duration, "progress": 1.0,
+            "gifts": TOURNEE.levels.get(level, TOURNEE.levels["normal"]).gifts_required} | kw
 
 
 def attempt(client, game, answer):
@@ -98,16 +98,18 @@ def test_tournee_flight_checked_against_level(client):
     attempt(client, "constellation", {"cells": STARS})
     solve_machine(client)
     content = games(client)["tournee"]["content"]
-    assert content["level"] == "normal" and content["settings"]["duration"] <= 120
+    assert content["level"] == "normal"
+    assert content["settings"]["duration"] == 120 and content["settings"]["gifts_required"] == 30
     lives = TOURNEE.levels["normal"].lives
     crashed = flight(finished=False, hits=lives, seconds=40, progress=0.45)
     assert attempt(client, "tournee", crashed).json()["correct"] is False
     assert attempt(client, "tournee", flight(hits=lives)).json()["correct"] is False  # trop de chocs
     assert attempt(client, "tournee", flight(seconds=10)).json()["correct"] is False  # vol trop court
+    assert attempt(client, "tournee", flight(gifts=29)).json()["correct"] is False  # pas assez de cadeaux
     assert attempt(client, "tournee", flight(level="inconnu")).status_code == 422
     r = attempt(client, "tournee", flight(hits=lives - 1)).json()
     assert r["correct"] and r["completed"] and r["reward"]["digit"] == 2
-    assert len(r["hints"]) == 1  # 3 vols manqués : un indice
+    assert len(r["hints"]) == 2  # 4 vols manqués : deux indices
 
 
 def test_tournee_difficulty_set_by_admin(admin):
@@ -117,13 +119,15 @@ def test_tournee_difficulty_set_by_admin(admin):
     assert admin.post("/api/admin/kids/tournee/difficulty", json={"level": "facile"}).json()["changed"] is False
     assert admin.post("/api/admin/kids/tournee/difficulty", json={"level": "absent"}).status_code == 404
     content = games(admin)["tournee"]["content"]
-    assert content["level"] == "facile" and content["settings"] == TOURNEE.levels["facile"].model_dump()
+    assert content["level"] == "facile" and content["settings"] == TOURNEE.settings("facile")
+    assert content["settings"]["duration"] == TOURNEE.duration  # même durée à tous les niveaux
+    assert [lv.gifts_required for lv in TOURNEE.levels.values()] == [25, 30, 40]
     # le vol est jugé selon le niveau effectivement joué
     attempt(admin, "tournee", flight(level="facile", finished=False, hits=2, progress=0.5, seconds=20))
     stats = {g["id"]: g for g in admin.get("/api/admin/state").json()["kids"]["games"]}["tournee"]
     assert stats["difficulty"]["current"] == "facile"
     assert [lv["id"] for lv in stats["difficulty"]["levels"]] == ["facile", "normal", "difficile"]
-    last = {"level": "facile", "finished": False, "hits": 2, "progress": 0.5, "gifts": 3}
+    last = {"level": "facile", "finished": False, "hits": 2, "progress": 0.5, "gifts": 25}
     assert stats["difficulty"]["last_run"] == last
     # « Recommencer » efface le dernier vol mais garde le niveau choisi
     admin.post("/api/admin/kids/tournee/reset")

@@ -3,18 +3,19 @@ import { useCallback, useEffect, useRef, useState, type PointerEvent, type React
 import type { TourneeContent } from "../services/types";
 import { BigButton, Hints, type GameProps } from "./shared";
 import { sfx } from "./sounds";
-import { createRenderer, type Renderer } from "./tournee/draw";
+import { createRenderer, loadSprites, type Renderer } from "./tournee/draw";
 import {
-  OUTRO_S, createWorld, laneFromY, livesLeft, moveLane, progress, setLane, step, type World, type WorldEvent,
+  OUTRO_S, createWorld, enoughGifts, laneFromY, livesLeft, moveLane, progress, setLane, step, type World, type WorldEvent,
 } from "./tournee/engine";
 
 type Phase = "intro" | "countdown" | "playing" | "paused" | "ending" | "lost" | "sending";
 
-function sounds(events: WorldEvent[]) {
+function sounds(w: World, events: WorldEvent[]) {
   for (const e of events) {
     if (e === "hit") sfx.crash();
     else if (e === "gift") sfx.gift();
-    else if (e === "won") sfx.jingle();
+    else if (e === "full") sfx.success();
+    else if (e === "won") (enoughGifts(w) ? sfx.jingle : sfx.wrong)();
   }
 }
 
@@ -30,8 +31,9 @@ export function TourneeGame({ game, submit }: GameProps<TourneeContent>) {
   const [phase, setPhase] = useState<Phase>("intro");
   const [count, setCount] = useState(3);
   const [height, setHeight] = useState(360);
-  const [result, setResult] = useState<{ progress: number; gifts: number; hits: number } | null>(null);
+  const [result, setResult] = useState<{ progress: number; gifts: number; hits: number; finished: boolean } | null>(null);
   const [error, setError] = useState(false);
+  const [ready, setReady] = useState(false);
   const wrap = useRef<HTMLDivElement>(null);
   const cv = useRef<HTMLCanvasElement>(null);
   const renderer = useRef<Renderer | null>(null);
@@ -39,6 +41,15 @@ export function TourneeGame({ game, submit }: GameProps<TourneeContent>) {
   const level = useRef(c.level);
   const phaseRef = useRef<Phase>(phase);
   phaseRef.current = phase;
+
+  // --- illustrations : le vol ne démarre qu'une fois chargées (sinon des obstacles seraient invisibles)
+  useEffect(() => {
+    let alive = true;
+    void loadSprites().then(() => alive && setReady(true));
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   // --- dimensions
   useEffect(() => {
@@ -66,7 +77,7 @@ export function TourneeGame({ game, submit }: GameProps<TourneeContent>) {
   const send = useCallback(
     async (w: World, finished: boolean) => {
       const run = { level: level.current, finished, hits: w.hits, seconds: Math.round(w.t * 10) / 10, progress: progress(w), gifts: w.gifts };
-      setResult({ progress: run.progress, gifts: run.gifts, hits: run.hits });
+      setResult({ progress: run.progress, gifts: run.gifts, hits: run.hits, finished });
       setPhase("sending");
       setError(false);
       try {
@@ -93,7 +104,7 @@ export function TourneeGame({ game, submit }: GameProps<TourneeContent>) {
       const p = phaseRef.current;
       if (w && (p === "playing" || p === "ending")) {
         const events = step(w, dt);
-        sounds(events);
+        sounds(w, events);
         if (events.includes("won") || events.includes("lost")) {
           ending = now;
           setPhase("ending");
@@ -209,10 +220,13 @@ export function TourneeGame({ game, submit }: GameProps<TourneeContent>) {
               <span className="rounded-xl bg-white/15 px-3 py-1" data-testid="tournee-lives">
                 {"❤️".repeat(Math.min(s.lives, 9))} {s.lives} vies
               </span>
+              <span className="rounded-xl bg-or-400/90 px-3 py-1 text-bois-950" data-testid="tournee-goal">
+                🎁 Attrapez au moins {s.gifts_required} cadeaux
+              </span>
               <span className="rounded-xl bg-white/15 px-3 py-1">⏱ {s.duration} s · {s.label}</span>
             </div>
-            <BigButton tone="gold" className="mt-4 text-2xl short:mt-2" onClick={start}>
-              ▶ C'est parti !
+            <BigButton tone="gold" className="mt-4 text-2xl short:mt-2" onClick={start} disabled={!ready}>
+              {ready ? "▶ C'est parti !" : "Le traîneau se prépare…"}
             </BigButton>
           </Overlay>
         )}
@@ -235,7 +249,7 @@ export function TourneeGame({ game, submit }: GameProps<TourneeContent>) {
           </Overlay>
         )}
 
-        {phase === "sending" && w?.status === "won" && (
+        {phase === "sending" && w?.status === "won" && enoughGifts(w) && (
           <Overlay>
             <p className="animate-pop text-4xl font-black text-or-300">Arrivés au village ! 🎉</p>
           </Overlay>
@@ -244,14 +258,22 @@ export function TourneeGame({ game, submit }: GameProps<TourneeContent>) {
         {phase === "lost" && result && (
           <Overlay>
             <p className="text-3xl font-black text-or-300 short:text-2xl">
-              {error ? "Oups ! Le Père Noël n'a pas reçu le message…" : "Oh non ! Le traîneau est tombé dans la neige !"}
+              {error
+                ? "Oups ! Le Père Noël n'a pas reçu le message…"
+                : result.finished
+                  ? "Arrivés au village… mais la hotte n'est pas pleine !"
+                  : "Oh non ! Le traîneau est tombé dans la neige !"}
             </p>
             <p className="mt-2 text-xl font-bold text-white" data-testid="tournee-result">
-              Vous avez parcouru {Math.round(result.progress * 100)} % du chemin
-              {result.gifts > 0 && ` et attrapé ${result.gifts} cadeau${result.gifts > 1 ? "x" : ""}`} !
+              {result.finished
+                ? `Vous avez attrapé ${result.gifts} cadeau${result.gifts > 1 ? "x" : ""} sur ${s.gifts_required}. Encore un effort !`
+                : `Vous avez parcouru ${Math.round(result.progress * 100)} % du chemin et attrapé ${result.gifts} cadeau${result.gifts > 1 ? "x" : ""} sur ${s.gifts_required}.`}
             </p>
             <div className="mx-auto mt-2 h-4 w-72 overflow-hidden rounded-full bg-white/20">
-              <div className="h-full bg-or-400" style={{ width: `${Math.round(result.progress * 100)}%` }} />
+              <div
+                className="h-full bg-or-400"
+                style={{ width: `${Math.round(Math.min(1, result.finished ? result.gifts / Math.max(1, s.gifts_required) : result.progress) * 100)}%` }}
+              />
             </div>
             <BigButton tone="gold" className="mt-4 text-2xl short:mt-2" onClick={start}>
               ↻ Recommencer

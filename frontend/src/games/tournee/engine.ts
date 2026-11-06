@@ -15,8 +15,8 @@ export const LANE_H = (GROUND - SKY_TOP) / LANES;
 /** Centre horizontal du traîneau. */
 export const SLEIGH_X = 0.2;
 /** Taille de l'attelage (traîneau + rennes), en hauteur de couloir. */
-export const SLEIGH_W = 1.55;
-export const SLEIGH_H = 0.6;
+export const SLEIGH_W = 1.6;
+export const SLEIGH_H = 0.65;
 /** Zone de choc réduite : un frôlement ne compte pas (plus indulgent pour les enfants). */
 const HIT_SHRINK_X = 0.7;
 const HIT_SHRINK_Y = 0.7;
@@ -30,12 +30,12 @@ export type ObstacleKind = "maison" | "sapin" | "clocher" | "nuage" | "orage" | 
 
 /** Largeur (en hauteur de couloir) et couloirs occupés [haut, bas] de chaque obstacle. */
 export const KINDS: Record<ObstacleKind, { w: number; lanes: [number, number] }> = {
-  nuage: { w: 1.25, lanes: [0, 0] },
-  montgolfiere: { w: 0.85, lanes: [1, 1] },
-  maison: { w: 1.1, lanes: [2, 2] },
+  nuage: { w: 1.6, lanes: [0, 0] },
+  montgolfiere: { w: 0.7, lanes: [1, 1] },
+  maison: { w: 1.14, lanes: [2, 2] },
   orage: { w: 1.6, lanes: [0, 1] },
-  sapin: { w: 0.95, lanes: [1, 2] },
-  clocher: { w: 0.85, lanes: [1, 2] },
+  sapin: { w: 0.98, lanes: [1, 2] },
+  clocher: { w: 0.8, lanes: [1, 2] },
 };
 
 export interface Obstacle {
@@ -62,7 +62,7 @@ export interface Popup {
   good: boolean;
 }
 
-export type WorldEvent = "hit" | "gift" | "won" | "lost" | "move";
+export type WorldEvent = "hit" | "gift" | "full" | "won" | "lost" | "move";
 
 export interface World {
   s: TourneeSettings;
@@ -117,6 +117,8 @@ export function createWorld(s: TourneeSettings, aspect: number, seed = Date.now(
 export const progress = (w: World) => Math.min(1, w.t / w.s.duration);
 export const speedAt = (w: World) => lerp(w.s.speed_start, w.s.speed_end, progress(w));
 export const livesLeft = (w: World) => Math.max(0, w.s.lives - w.hits);
+/** Assez de cadeaux attrapés pour réussir la mission. */
+export const enoughGifts = (w: World) => w.gifts >= w.s.gifts_required;
 /** Centre vertical (fraction de hauteur) d'une position de couloir, éventuellement fractionnaire. */
 export const laneCenter = (y: number) => SKY_TOP + (y + 0.5) * LANE_H;
 /** Largeur d'écran correspondant à `n` hauteurs de couloir. */
@@ -174,13 +176,15 @@ function spawn(w: World, v: number) {
   const overlap = laneToX(w, widest + SLEIGH_W) / v;
   const gap = Math.max(lerp(w.s.gap_start, w.s.gap_end, progress(w)), overlap + REACTION_S);
   w.nextSpawn = w.t + gap;
-  if (w.s.gifts && r() < 0.6) {
-    // À mi-chemin entre cet obstacle et le suivant : jamais sur un obstacle.
-    const from = x + laneToX(w, widest);
-    const to = x + gap * v;
-    if (to - from > laneToX(w, 0.8))
-      w.bonuses.push({ id: w.nextId++, x: (from + to) / 2, lane: Math.floor(r() * LANES), taken: false });
-  }
+  // Une petite rangée de cadeaux (même couloir) entre cet obstacle et le suivant : jamais sur un obstacle.
+  const from = x + laneToX(w, widest);
+  const to = x + gap * v;
+  const spacing = laneToX(w, 0.75);
+  const room = to - from - laneToX(w, 0.6);
+  const count = Math.max(0, Math.min(w.s.gifts_per_gap, Math.floor(room / spacing) + 1));
+  const lane = Math.floor(r() * LANES);
+  const first = (from + to) / 2 - ((count - 1) * spacing) / 2;
+  for (let i = 0; i < count; i++) w.bonuses.push({ id: w.nextId++, x: first + i * spacing, lane, taken: false });
 }
 
 interface Box {
@@ -261,8 +265,12 @@ export function step(w: World, rawDt: number): WorldEvent[] {
     if (b.taken || !overlaps(me, bonusBox(w, b))) continue;
     b.taken = true;
     w.gifts += 1;
-    w.popups.push({ x: b.x, y: Math.max(laneCenter(b.lane) - LANE_H * 0.4, SKY_TOP + LANE_H * 0.6), text: "+1 🎁", age: 0, good: true });
-    events.push("gift");
+    const full = w.gifts === w.s.gifts_required;
+    w.popups.push({
+      x: Math.max(b.x, 0.3), y: Math.max(laneCenter(b.lane) - LANE_H * 0.4, SKY_TOP + LANE_H * 0.6),
+      text: full ? "Hotte pleine ! ★" : "+1 🎁", age: 0, good: true,
+    });
+    events.push(full ? "full" : "gift");
   }
 
   if (w.t >= w.s.duration) {

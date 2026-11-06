@@ -17,7 +17,9 @@ function DifficultyPicker({ difficulty }: { difficulty: Difficulty }) {
   const label = (id: string) => difficulty.levels.find((l) => l.id === id)?.label ?? id;
   return (
     <div className="mt-2 rounded bg-black/30 p-2" data-testid="admin-tournee-difficulty">
-      <p className="text-xs font-bold text-parchemin-200/90">Difficulté (appliquée au prochain vol) :</p>
+      <p className="text-xs font-bold text-parchemin-200/90">
+        Difficulté (appliquée au prochain vol) · vol de {difficulty.duration} s :
+      </p>
       <div className="mt-1 grid gap-2" style={{ gridTemplateColumns: `repeat(${difficulty.levels.length}, minmax(0, 1fr))` }}>
         {difficulty.levels.map((l) => (
           <ActionButton
@@ -31,7 +33,7 @@ function DifficultyPicker({ difficulty }: { difficulty: Difficulty }) {
             {l.id === difficulty.current ? "✓ " : ""}
             {l.label}
             <span className="block text-[11px] font-normal opacity-80">
-              {l.duration} s · {l.lives} vies
+              {l.gifts_required} cadeaux · {l.lives} vies
             </span>
           </ActionButton>
         ))}
@@ -39,7 +41,7 @@ function DifficultyPicker({ difficulty }: { difficulty: Difficulty }) {
       {last && (
         <p className="mt-1 text-xs text-parchemin-200/80" data-testid="admin-tournee-last">
           Dernier vol ({label(last.level)}) : {last.finished ? "arrivé" : `${Math.round(last.progress * 100)} % du parcours`} ·{" "}
-          {last.hits} choc(s) · {last.gifts} cadeau(x)
+          {last.hits} choc(s) · {last.gifts}/{difficulty.levels.find((l) => l.id === last.level)?.gifts_required ?? "?"} cadeaux
         </p>
       )}
     </div>

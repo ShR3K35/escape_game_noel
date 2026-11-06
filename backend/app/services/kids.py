@@ -137,7 +137,7 @@ class KidsService:
                            "memorize_seconds": c.memorize_seconds}
         if gid == "tournee":
             level = self.difficulty(row)
-            return base | {"level": level, "settings": c.levels[level].model_dump()}
+            return base | {"level": level, "settings": c.settings(level)}
         return base | {"riddle": c.riddle, "length": len(c.code)}
 
     def view(self, s: Session, include_stats: bool = False) -> dict:
@@ -161,7 +161,8 @@ class KidsService:
                 if gid == "tournee":
                     entry["difficulty"] = {
                         "current": self.difficulty(row), "last_run": (row.data or {}).get("last"),
-                        "levels": [{"id": k, "label": v.label, "duration": v.duration, "lives": v.lives}
+                        "duration": c.duration,
+                        "levels": [{"id": k, "label": v.label, "lives": v.lives, "gifts_required": v.gifts_required}
                                    for k, v in c.levels.items()]}
             games.append(entry)
         done = all(r.completed for r in rows.values())
@@ -187,7 +188,8 @@ class KidsService:
                 "level": answer.level, "finished": answer.finished, "hits": answer.hits,
                 "progress": round(answer.progress, 2), "gifts": answer.gifts}}
             # Tolérance de 3 s : le chronomètre de la tablette s'arrête pendant les pauses.
-            return answer.finished and answer.hits < level.lives and answer.seconds >= level.duration - 3
+            return (answer.finished and answer.hits < level.lives and answer.seconds >= c.duration - 3
+                    and answer.gifts >= level.gifts_required)
         return answer.code == c.code
 
     def attempt(self, s: Session, gid: str, raw_answer: dict) -> dict:
@@ -230,7 +232,8 @@ class KidsService:
                 row.data = {**row.data, "misses": [*self._misses(row), answer.answer]}
             detail = ""
             if gid == "tournee":
-                detail = f" ({round(answer.progress * 100)} % du parcours, {answer.hits} choc(s))"
+                detail = (f" ({round(answer.progress * 100)} % du parcours, {answer.hits} choc(s), "
+                          f"{answer.gifts}/{self.cfg.kids.tournee.levels[answer.level].gifts_required} cadeaux)")
             log_event(s, self.clock, "kids_failed", f"Lutins : essai manqué sur « {title} »{detail}",
                       {"game": gid, "failures": row.failures}, "kids")
         reward = self._game_cfg(gid).reward.model_dump() if row.completed and gid != "code" else None

@@ -277,34 +277,39 @@ kids:
 
   tournee:
     title: "La tournée du traîneau"
-    instructions: "Aidez le Père Noël à traverser le village : évitez les cheminées, les clochers et les nuages d'orage !"
+    instructions: "Aidez le Père Noël à traverser le village : évitez les cheminées, les clochers et les nuages d'orage, et attrapez les cadeaux !"
+    duration: 120         # durée du vol en secondes, la même à tous les niveaux (120 au maximum = 2 minutes)
     # ───────────── DIFFICULTÉ ─────────────
     # Niveau utilisé par défaut. Le maître du jeu peut en changer EN DIRECT dans l'onglet « Lutins »
     # de l'admin (boutons Facile / Normal / Difficile) : le choix s'applique au vol suivant.
     difficulty: normal
     # Réglages de chaque niveau (on peut les modifier, en ajouter ou en retirer) :
-    #   duration      durée du vol en secondes (120 au maximum = 2 minutes)
     #   lives         nombre de chocs autorisés (au dernier choc, on recommence le vol)
     #   speed_start / speed_end   vitesse au départ / à l'arrivée, en largeurs d'écran par seconde
     #                 (0.25 : un obstacle met 4 s à traverser l'écran ; 0.5 : 2 s)
     #   gap_start / gap_end       secondes entre deux obstacles au départ / à l'arrivée
+    #                 (un cadeau apparaît entre deux obstacles : plus l'écart est grand, moins il y a de cadeaux)
     #   double_chance probabilité (0 à 1) qu'un obstacle bloque 2 couloirs sur 3 (il en reste toujours un libre)
-    #   gifts         cadeaux bonus à attraper (pour le plaisir, sans effet sur la réussite)
+    #   gifts_required  cadeaux à attraper pendant le vol pour réussir la mission
+    #   gifts_per_gap   cadeaux alignés (dans le même couloir) entre deux obstacles : 1 à 3
     levels:
       facile:
-        { label: "Facile", duration: 60, lives: 5, speed_start: 0.22, speed_end: 0.30,
-          gap_start: 2.6, gap_end: 1.9, double_chance: 0.0, gifts: true }
+        { label: "Facile", lives: 5, speed_start: 0.20, speed_end: 0.28,
+          gap_start: 2.4, gap_end: 2.0, double_chance: 0.0,
+          gifts_required: 25, gifts_per_gap: 2 }
       normal:
-        { label: "Normal", duration: 90, lives: 4, speed_start: 0.26, speed_end: 0.38,
-          gap_start: 2.2, gap_end: 1.5, double_chance: 0.25, gifts: true }
+        { label: "Normal", lives: 4, speed_start: 0.26, speed_end: 0.38,
+          gap_start: 2.2, gap_end: 1.6, double_chance: 0.25,
+          gifts_required: 30, gifts_per_gap: 2 }
       difficile:
-        { label: "Difficile", duration: 120, lives: 3, speed_start: 0.30, speed_end: 0.48,
-          gap_start: 1.8, gap_end: 1.15, double_chance: 0.45, gifts: true }
+        { label: "Difficile", lives: 3, speed_start: 0.32, speed_end: 0.50,
+          gap_start: 1.9, gap_end: 1.3, double_chance: 0.45,
+          gifts_required: 40, gifts_per_gap: 2 }
     reward: { symbol: "🎁", label: "la hotte du Père Noël", digit: 2 }
     hints:
       - "Touchez le ciel à l'endroit où le traîneau doit aller : en haut, au milieu ou en bas."
       - "Regardez loin devant, à droite : les obstacles arrivent de là. Il y a toujours un passage libre !"
-      - "Pas besoin d'attraper les cadeaux : le plus important, c'est d'éviter les obstacles."
+      - "Le compteur en haut indique les cadeaux à attraper : allez dans le couloir des cadeaux dès qu'ils apparaissent, à droite."
 
   code:
     title: "Le code du traîneau"

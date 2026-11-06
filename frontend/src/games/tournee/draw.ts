@@ -3,9 +3,17 @@
  * Les éléments fixes (ciel, collines, attelage, obstacles) sont pré-dessinés dans des canvas hors écran
  * à chaque redimensionnement : chaque image ne fait que les recopier (fluide sur une tablette ancienne).
  */
+import attelageUrl from "../../assets/tournee/attelage.webp";
+import cadeauUrl from "../../assets/tournee/cadeau.webp";
+import clocherUrl from "../../assets/tournee/clocher.webp";
+import maisonUrl from "../../assets/tournee/maison.webp";
+import montgolfiereUrl from "../../assets/tournee/montgolfiere.webp";
+import nuageUrl from "../../assets/tournee/nuage.webp";
+import orageUrl from "../../assets/tournee/orage.webp";
+import sapinUrl from "../../assets/tournee/sapin.webp";
 import {
-  GROUND, KINDS, LANE_H, SKY_TOP, SLEIGH_H, SLEIGH_W, SLEIGH_X,
-  laneCenter, livesLeft, progress, type ObstacleKind, type World,
+  GROUND, KINDS, LANE_H, SKY_TOP, SLEIGH_W, SLEIGH_X,
+  enoughGifts, laneCenter, livesLeft, progress, type ObstacleKind, type World,
 } from "./engine";
 
 type Ctx = CanvasRenderingContext2D;
@@ -59,16 +67,6 @@ function poly(c: Ctx, pts: number[], fill: string, stroke?: string, lw = 0.02) {
   }
 }
 
-function line(c: Ctx, x0: number, y0: number, x1: number, y1: number, color: string, w: number) {
-  c.beginPath();
-  c.moveTo(x0, y0);
-  c.lineTo(x1, y1);
-  c.strokeStyle = color;
-  c.lineWidth = w;
-  c.lineCap = "round";
-  c.stroke();
-}
-
 function heartPath(c: Ctx, x: number, y: number, s: number) {
   c.beginPath();
   c.moveTo(x, y + s * 0.35);
@@ -78,271 +76,56 @@ function heartPath(c: Ctx, x: number, y: number, s: number) {
   c.bezierCurveTo(x + s * 0.5, y, x, y, x, y + s * 0.35);
 }
 
-// ------------------------------------------------------------------ attelage
-/** Renne vu de profil, tourné vers la droite. Unité : hauteur de couloir ; origine : arrière du corps. */
-function reindeer(c: Ctx, x: number, frame: number, lead: boolean) {
-  const bob = [0, -0.015, 0, 0.015][frame];
-  const swing = [0.35, 0.1, -0.3, 0.1][frame];
-  c.save();
-  c.translate(x, bob);
-  // pattes (deux plans : arrière plus sombre)
-  const leg = (lx: number, a: number, col: string) => line(c, lx, 0.04, lx + Math.sin(a) * 0.15, 0.04 + Math.cos(a) * 0.15, col, 0.035);
-  leg(0.05, swing, C.brownDark);
-  leg(0.24, -swing, C.brownDark);
-  leg(0.08, -swing * 0.8, C.brown);
-  leg(0.27, swing * 0.8, C.brown);
-  // queue, corps, cou, tête
-  circle(c, -0.01, -0.03, 0.03, "#f3eadc");
-  ellipse(c, 0.16, 0, 0.16, 0.075, C.brown);
-  ellipse(c, 0.16, 0.03, 0.11, 0.04, "#b07a45");
-  poly(c, [0.24, -0.04, 0.3, -0.15, 0.36, -0.13, 0.32, 0.0], C.brown);
-  ellipse(c, 0.36, -0.15, 0.065, 0.045, C.brown, 0.25);
-  circle(c, 0.35, -0.17, 0.011, "#1a1a1a");
-  // museau / nez
-  circle(c, 0.42, -0.135, lead ? 0.024 : 0.016, lead ? "#ff2a2a" : "#2a1a10");
-  if (lead) circle(c, 0.42, -0.135, 0.045, "rgba(255,60,60,0.25)");
-  // oreille et bois
-  poly(c, [0.32, -0.19, 0.29, -0.22, 0.33, -0.2], C.brownDark);
-  const antler = "#d9b98a";
-  line(c, 0.33, -0.19, 0.3, -0.32, antler, 0.022);
-  line(c, 0.31, -0.27, 0.25, -0.3, antler, 0.018);
-  line(c, 0.3, -0.32, 0.34, -0.37, antler, 0.018);
-  line(c, 0.36, -0.19, 0.38, -0.31, antler, 0.022);
-  line(c, 0.375, -0.27, 0.43, -0.29, antler, 0.018);
-  // harnais
-  line(c, 0.1, -0.06, 0.1, 0.06, C.red, 0.03);
-  circle(c, 0.1, 0.0, 0.017, C.gold);
-  c.restore();
+// ------------------------------------------------------------------ sprites
+// Illustrations générées (GPT Image), recadrées et converties en WebP transparent.
+const SOURCES = {
+  attelage: attelageUrl, maison: maisonUrl, sapin: sapinUrl, clocher: clocherUrl,
+  nuage: nuageUrl, orage: orageUrl, montgolfiere: montgolfiereUrl, cadeau: cadeauUrl,
+};
+type SpriteName = keyof typeof SOURCES;
+const images: Partial<Record<SpriteName, HTMLImageElement>> = {};
+let loading: Promise<void> | null = null;
+
+/** Charge les illustrations une seule fois (avant le premier vol). */
+export function loadSprites(): Promise<void> {
+  loading ??= Promise.all(
+    (Object.keys(SOURCES) as SpriteName[]).map(
+      (name) =>
+        new Promise<void>((resolve) => {
+          const img = new Image();
+          img.onload = () => {
+            images[name] = img;
+            resolve();
+          };
+          img.onerror = () => resolve(); // image absente : l'objet n'est simplement pas dessiné
+          img.src = SOURCES[name];
+        }),
+    ),
+  ).then(() => undefined);
+  return loading;
 }
 
-/** Traîneau, Père Noël et sa hotte. Origine : coin arrière du traîneau, y = 0 au centre de la zone de choc. */
-function sleigh(c: Ctx) {
-  // patins
-  c.beginPath();
-  c.moveTo(-0.02, 0.24);
-  c.lineTo(0.58, 0.24);
-  c.quadraticCurveTo(0.7, 0.24, 0.7, 0.12);
-  c.strokeStyle = C.gold;
-  c.lineWidth = 0.04;
-  c.lineCap = "round";
-  c.stroke();
-  line(c, 0.12, 0.12, 0.12, 0.24, C.goldDark, 0.03);
-  line(c, 0.48, 0.12, 0.48, 0.24, C.goldDark, 0.03);
-  // hotte et cadeaux
-  ellipse(c, 0.13, -0.15, 0.12, 0.14, "#7b4a26");
-  poly(c, [0.03, -0.27, 0.13, -0.33, 0.23, -0.27, 0.13, -0.22], "#9b6334");
-  poly(c, [0.05, -0.36, 0.13, -0.36, 0.13, -0.27, 0.05, -0.27], "#2f7fd8");
-  poly(c, [0.12, -0.4, 0.22, -0.4, 0.22, -0.29, 0.12, -0.29], C.green);
-  line(c, 0.17, -0.4, 0.17, -0.29, C.gold, 0.018);
-  line(c, 0.09, -0.36, 0.09, -0.27, C.gold, 0.018);
-  // Père Noël
-  ellipse(c, 0.33, -0.12, 0.12, 0.14, C.red);
-  poly(c, [0.23, -0.06, 0.43, -0.06, 0.43, -0.02, 0.23, -0.02], "#2a1a10");
-  line(c, 0.38, -0.16, 0.5, -0.1, C.red, 0.06);
-  circle(c, 0.52, -0.1, 0.03, "#2a1a10");
-  circle(c, 0.35, -0.32, 0.075, C.skin);
-  ellipse(c, 0.36, -0.26, 0.085, 0.07, "#ffffff");
-  circle(c, 0.38, -0.32, 0.01, "#1a1a1a");
-  circle(c, 0.405, -0.3, 0.017, "#f29b8f");
-  poly(c, [0.27, -0.36, 0.43, -0.38, 0.33, -0.5, 0.2, -0.47], C.red);
-  ellipse(c, 0.35, -0.37, 0.09, 0.028, "#ffffff", -0.1);
-  circle(c, 0.2, -0.47, 0.03, "#ffffff");
-  // caisse du traîneau
-  c.beginPath();
-  c.moveTo(0.0, -0.24);
-  c.quadraticCurveTo(-0.06, -0.26, -0.02, -0.3);
-  c.quadraticCurveTo(0.06, -0.3, 0.07, -0.18);
-  c.lineTo(0.08, -0.02);
-  c.lineTo(0.58, -0.02);
-  c.quadraticCurveTo(0.66, -0.1, 0.72, -0.1);
-  c.quadraticCurveTo(0.74, 0.06, 0.6, 0.13);
-  c.lineTo(0.08, 0.13);
-  c.quadraticCurveTo(0.0, 0.1, 0.0, -0.24);
-  c.closePath();
-  c.fillStyle = C.red;
-  c.fill();
-  c.lineWidth = 0.02;
-  c.strokeStyle = C.redDark;
-  c.stroke();
-  line(c, 0.1, 0.02, 0.58, 0.02, C.gold, 0.02);
-  circle(c, 0.33, 0.07, 0.03, C.gold);
-}
-
-/** Attelage complet (4 images de galop), pré-dessiné. */
-function teamFrames(L: number): { frames: HTMLCanvasElement[]; ox: number; oy: number } {
-  const pad = 0.55; // marge au-dessus (bonnet, bois)
-  const w = (SLEIGH_W + 0.25) * L;
-  const h = (SLEIGH_H + pad + 0.35) * L;
-  const ox = 0.08 * L;
-  const oy = (pad + SLEIGH_H / 2) * L;
-  const frames = [0, 1, 2, 3].map((f) => {
-    const [cv, c] = canvas(w, h);
-    if (!c) return cv;
-    c.translate(ox, oy);
-    c.scale(L, L);
-    // rênes et traits
-    line(c, 0.52, -0.1, 1.2, -0.12, "#5b3716", 0.012);
-    line(c, 0.68, -0.02, 1.25, 0.0, C.gold, 0.02);
-    reindeer(c, 0.78, f, false);
-    reindeer(c, 1.15, (f + 2) % 4, true);
-    sleigh(c);
-    return cv;
-  });
-  return { frames, ox, oy };
-}
-
-// ------------------------------------------------------------------ obstacles
-const WALLS = ["#e7d3b0", "#b9d3e6", "#efbcae"];
-
-function maison(c: Ctx, v: number) {
-  // Bande d'un couloir : y de 0 (haut du couloir) à 1 (sol).
-  const wall = WALLS[v % 3];
-  poly(c, [0.1, 0.5, 0.95, 0.5, 0.95, 1.0, 0.1, 1.0], wall, "#6b4a35", 0.02);
-  // cheminée (l'obstacle !)
-  poly(c, [0.64, 0.06, 0.84, 0.06, 0.84, 0.45, 0.64, 0.45], "#b23a2a", "#5a1a12", 0.02);
-  for (let y = 0.14; y < 0.44; y += 0.08) line(c, 0.645, y, 0.835, y, "#7d2418", 0.008);
-  poly(c, [0.6, 0.0, 0.88, 0.0, 0.88, 0.07, 0.6, 0.07], C.snow, C.snowShade, 0.01);
-  // toit enneigé
-  poly(c, [0.0, 0.55, 0.52, 0.16, 1.05, 0.55], "#7a2a2a", "#4a1414", 0.02);
-  poly(c, [0.02, 0.52, 0.52, 0.14, 1.03, 0.52, 0.95, 0.56, 0.52, 0.24, 0.1, 0.56], C.snow);
-  // fenêtres et porte
-  poly(c, [0.2, 0.62, 0.38, 0.62, 0.38, 0.78, 0.2, 0.78], C.window, "#6b4a35", 0.02);
-  line(c, 0.29, 0.62, 0.29, 0.78, "#6b4a35", 0.015);
-  poly(c, [0.6, 0.66, 0.8, 0.66, 0.8, 1.0, 0.6, 1.0], "#5a3018");
-  circle(c, 0.75, 0.84, 0.018, C.gold);
-  // guirlande lumineuse
-  for (let i = 0; i < 6; i++) circle(c, 0.16 + i * 0.15, 0.58, 0.02, ["#ff4d4d", "#ffd84d", "#4dff88"][i % 3]);
-}
-
-function sapin(c: Ctx) {
-  // Bande de deux couloirs : y de 0 à 2 (sol).
-  poly(c, [0.4, 1.75, 0.55, 1.75, 0.55, 2.0, 0.4, 2.0], C.brownDark);
-  const tiers: [number, number, number][] = [[1.85, 0.48, 0.55], [1.4, 0.4, 0.5], [0.95, 0.32, 0.45]];
-  for (const [base, half, height] of tiers) {
-    poly(c, [0.475 - half, base, 0.475, base - height - 0.15, 0.475 + half, base], C.green, C.greenDark, 0.02);
-    poly(c, [0.475 - half, base, 0.475 - half * 0.6, base - 0.06, 0.475, base - 0.02, 0.475 + half * 0.6, base - 0.06, 0.475 + half, base], C.snow);
+/** Copie une illustration à la taille exacte d'affichage (contenue dans w × h, alignée en bas ou au centre). */
+function fitted(name: SpriteName, w: number, h: number, align: "bottom" | "center", mirror = false): HTMLCanvasElement | null {
+  const img = images[name];
+  if (!img) return null;
+  const k = Math.min(w / img.width, h / img.height);
+  const dw = img.width * k;
+  const dh = img.height * k;
+  const [cv, c] = canvas(w, h);
+  if (!c) return null;
+  c.imageSmoothingQuality = "high";
+  if (mirror) {
+    c.translate(w, 0);
+    c.scale(-1, 1);
   }
-  const balls: [number, number, string][] = [[0.3, 1.6, "#ff4d4d"], [0.65, 1.55, "#ffd84d"], [0.45, 1.2, "#4db8ff"], [0.6, 0.95, "#ff4d4d"], [0.35, 0.85, "#ffd84d"]];
-  for (const [x, y, col] of balls) circle(c, x, y, 0.035, col);
-  // étoile au sommet
-  const s = 0.09;
-  const pts: number[] = [];
-  for (let i = 0; i < 10; i++) {
-    const a = -Math.PI / 2 + (i * Math.PI) / 5;
-    const r = i % 2 ? s * 0.45 : s;
-    pts.push(0.475 + Math.cos(a) * r, 0.25 + Math.sin(a) * r);
-  }
-  poly(c, pts, C.gold, C.goldDark, 0.01);
-}
-
-function clocher(c: Ctx) {
-  // Bande de deux couloirs : y de 0 à 2 (sol).
-  poly(c, [0.15, 0.62, 0.7, 0.62, 0.7, 2.0, 0.15, 2.0], "#c8c0b4", "#6b6358", 0.02);
-  for (let y = 0.8; y < 2; y += 0.2) line(c, 0.16, y, 0.69, y, "#a59c8f", 0.008);
-  // flèche enneigée
-  poly(c, [0.08, 0.64, 0.425, 0.04, 0.77, 0.64], "#3b4f7a", "#1e2a44", 0.02);
-  poly(c, [0.08, 0.64, 0.425, 0.04, 0.47, 0.12, 0.2, 0.6, 0.77, 0.64, 0.77, 0.68, 0.08, 0.68], C.snow);
-  line(c, 0.425, 0.04, 0.425, -0.06, C.goldDark, 0.02);
-  line(c, 0.38, -0.02, 0.47, -0.02, C.goldDark, 0.02);
-  // horloge, cloche, porte
-  circle(c, 0.425, 0.85, 0.12, "#f8f2e2");
-  line(c, 0.425, 0.85, 0.425, 0.77, "#222", 0.02);
-  line(c, 0.425, 0.85, 0.48, 0.87, "#222", 0.02);
-  poly(c, [0.3, 1.15, 0.55, 1.15, 0.55, 1.4, 0.3, 1.4], "#2b2b3a");
-  ellipse(c, 0.425, 1.3, 0.07, 0.08, C.gold);
-  poly(c, [0.33, 1.7, 0.52, 1.7, 0.52, 2.0, 0.33, 2.0], "#5a3018");
-  poly(c, [0.2, 1.5, 0.27, 1.5, 0.27, 1.62, 0.2, 1.62], C.window);
-  poly(c, [0.58, 1.5, 0.65, 1.5, 0.65, 1.62, 0.58, 1.62], C.window);
-}
-
-function cloud(c: Ctx, cx: number, cy: number, s: number) {
-  const puffs: [number, number, number][] = [[-0.45, 0.1, 0.28], [-0.15, -0.08, 0.36], [0.2, -0.12, 0.38], [0.48, 0.06, 0.3], [0.05, 0.14, 0.32]];
-  for (const [x, y, r] of puffs) circle(c, cx + x * s, cy + y * s + 0.03 * s, r * s, "#3c4358");
-  for (const [x, y, r] of puffs) circle(c, cx + x * s, cy + y * s, r * s, "#646d86");
-  for (const [x, y, r] of puffs) circle(c, cx + x * s - 0.05 * s, cy + y * s - 0.08 * s, r * s * 0.6, "#7f89a3");
-  // visage grognon
-  circle(c, cx - 0.12 * s, cy + 0.02 * s, 0.05 * s, "#1c2030");
-  circle(c, cx + 0.14 * s, cy + 0.02 * s, 0.05 * s, "#1c2030");
-  line(c, cx - 0.2 * s, cy - 0.08 * s, cx - 0.05 * s, cy - 0.04 * s, "#1c2030", 0.035 * s);
-  line(c, cx + 0.22 * s, cy - 0.08 * s, cx + 0.07 * s, cy - 0.04 * s, "#1c2030", 0.035 * s);
-}
-
-function bolt(c: Ctx, x: number, y: number, s: number) {
-  poly(c, [x, y, x + 0.12 * s, y, x + 0.04 * s, y + 0.18 * s, x + 0.14 * s, y + 0.18 * s, x - 0.04 * s, y + 0.45 * s, x + 0.0 * s, y + 0.24 * s, x - 0.09 * s, y + 0.24 * s], "#ffe14d", "#c79a00", 0.012 * s);
-}
-
-function nuage(c: Ctx) {
-  // Bande d'un couloir, largeur 1.25
-  bolt(c, 0.38, 0.55, 0.8);
-  bolt(c, 0.82, 0.58, 0.7);
-  cloud(c, 0.62, 0.42, 0.8);
-}
-
-function orage(c: Ctx) {
-  // Bande de deux couloirs, largeur 1.6
-  bolt(c, 0.5, 1.3, 1.25);
-  bolt(c, 1.1, 1.35, 1.1);
-  cloud(c, 0.86, 1.12, 0.92);
-  cloud(c, 0.75, 0.45, 1.0);
-}
-
-function montgolfiere(c: Ctx) {
-  // Bande d'un couloir, largeur 0.85
-  const cx = 0.425;
-  const cy = 0.38;
-  const r = 0.33;
-  c.save();
-  c.beginPath();
-  c.moveTo(cx - r * 0.45, cy + r * 0.85);
-  c.bezierCurveTo(cx - r * 1.35, cy + r * 0.2, cx - r * 1.1, cy - r * 1.05, cx, cy - r * 1.05);
-  c.bezierCurveTo(cx + r * 1.1, cy - r * 1.05, cx + r * 1.35, cy + r * 0.2, cx + r * 0.45, cy + r * 0.85);
-  c.closePath();
-  c.fillStyle = C.red;
-  c.fill();
-  c.clip();
-  for (let i = -2; i <= 2; i += 2) poly(c, [cx + (i - 0.5) * r * 0.42, cy - r * 1.2, cx + (i + 0.5) * r * 0.42, cy - r * 1.2, cx + (i + 0.5) * r * 0.22, cy + r, cx + (i - 0.5) * r * 0.22, cy + r], "#fff4e0");
-  poly(c, [cx - r * 1.4, cy + r * 0.05, cx + r * 1.4, cy + r * 0.05, cx + r * 1.4, cy + r * 0.2, cx - r * 1.4, cy + r * 0.2], C.gold);
-  c.restore();
-  line(c, cx - r * 0.42, cy + r * 0.85, cx - 0.08, 0.84, "#5b3716", 0.012);
-  line(c, cx + r * 0.42, cy + r * 0.85, cx + 0.08, 0.84, "#5b3716", 0.012);
-  poly(c, [cx - 0.1, 0.84, cx + 0.1, 0.84, cx + 0.08, 0.96, cx - 0.08, 0.96], "#9b6334", "#5b3716", 0.012);
-}
-
-function obstacleSprite(kind: ObstacleKind, variant: number, L: number): HTMLCanvasElement {
-  const { w, lanes } = KINDS[kind];
-  const bandH = lanes[1] - lanes[0] + 1;
-  const pad = 0.15; // flèche, éclairs, fumée qui dépassent un peu
-  const [cv, c] = canvas(w * L, (bandH + pad) * L);
-  if (!c) return cv;
-  c.translate(0, pad * L);
-  c.scale(L, L);
-  if (kind === "maison") maison(c, variant);
-  else if (kind === "sapin") sapin(c);
-  else if (kind === "clocher") clocher(c);
-  else if (kind === "nuage") nuage(c);
-  else if (kind === "orage") orage(c);
-  else montgolfiere(c);
+  c.drawImage(img, (w - dw) / 2, align === "bottom" ? h - dh : (h - dh) / 2, dw, dh);
   return cv;
 }
 
-function giftSprite(L: number): HTMLCanvasElement {
-  const s = 0.5 * L;
-  const [cv, c] = canvas(s * 1.6, s * 1.6);
-  if (!c) return cv;
-  const g = c.createRadialGradient(s * 0.8, s * 0.8, 0, s * 0.8, s * 0.8, s * 0.8);
-  g.addColorStop(0, "rgba(255,230,120,0.8)");
-  g.addColorStop(1, "rgba(255,230,120,0)");
-  c.fillStyle = g;
-  c.fillRect(0, 0, s * 1.6, s * 1.6);
-  c.translate(s * 0.3, s * 0.35);
-  c.scale(s, s);
-  poly(c, [0, 0.25, 1, 0.25, 1, 1, 0, 1], "#2f7fd8", "#163f73", 0.04);
-  poly(c, [-0.05, 0.12, 1.05, 0.12, 1.05, 0.32, -0.05, 0.32], "#3d93f0", "#163f73", 0.04);
-  poly(c, [0.42, 0.12, 0.58, 0.12, 0.58, 1, 0.42, 1], C.gold);
-  ellipse(c, 0.33, 0.04, 0.17, 0.1, C.gold, 0.4);
-  ellipse(c, 0.67, 0.04, 0.17, 0.1, C.gold, -0.4);
-  return cv;
-}
+/** Part de l'attelage occupée par le traîneau (le reste : les rennes, animés à part). */
+const SLEIGH_PART = 0.385;
+const GROUNDED: ObstacleKind[] = ["maison", "sapin", "clocher"];
 
 // ------------------------------------------------------------------ décor
 function skySprite(W: number, H: number): HTMLCanvasElement {
@@ -418,7 +201,10 @@ export function createRenderer(cv: HTMLCanvasElement): Renderer | null {
   let sky: HTMLCanvasElement | null = null;
   let hillsFar: HTMLCanvasElement | null = null;
   let hillsNear: HTMLCanvasElement | null = null;
-  let team: ReturnType<typeof teamFrames> | null = null;
+  let sleighImg: HTMLCanvasElement | null = null;
+  let deerImg: HTMLCanvasElement | null = null;
+  let teamW = 0;
+  let teamH = 0;
   let gift: HTMLCanvasElement | null = null;
   const sprites = new Map<string, HTMLCanvasElement>();
   const flakes: Flake[] = Array.from({ length: 45 }, (_, i) => ({
@@ -428,13 +214,36 @@ export function createRenderer(cv: HTMLCanvasElement): Renderer | null {
   let idleDist = 0;
 
   const sprite = (kind: ObstacleKind, variant: number) => {
-    const key = `${kind}-${kind === "maison" ? variant : 0}`;
+    // Maisons et sapins parfois retournés : un peu de variété.
+    const mirror = (kind === "maison" || kind === "sapin") && variant === 1;
+    const key = `${kind}-${mirror}`;
     let s = sprites.get(key);
-    if (!s) {
-      s = obstacleSprite(kind, variant, L);
-      sprites.set(key, s);
+    if (s === undefined) {
+      const { w, lanes } = KINDS[kind];
+      const band = (lanes[1] - lanes[0] + 1) * L;
+      const sky = !GROUNDED.includes(kind);
+      s = fitted(kind, w * L, sky ? band * 0.9 : band, sky ? "center" : "bottom", mirror) ?? undefined;
+      if (s) sprites.set(key, s);
     }
     return s;
+  };
+
+  /** Découpe l'attelage en deux : le traîneau et les rennes, qui galopent avec un léger décalage. */
+  const buildTeam = () => {
+    const img = images.attelage;
+    if (!img) return;
+    teamW = SLEIGH_W * L * 1.2; // un peu plus grand que la zone de choc : plus lisible et plus indulgent
+    teamH = (teamW * img.height) / img.width;
+    const cut = Math.round(img.width * SLEIGH_PART);
+    const part = (sx: number, sw: number) => {
+      const [cv, c] = canvas((teamW * sw) / img.width, teamH);
+      if (!c) return null;
+      c.imageSmoothingQuality = "high";
+      c.drawImage(img, sx, 0, sw, img.height, 0, 0, cv.width, cv.height);
+      return cv;
+    };
+    sleighImg = part(0, cut);
+    deerImg = part(cut, img.width - cut);
   };
 
   const resize = (cssW: number, cssH: number, dpr: number) => {
@@ -447,9 +256,14 @@ export function createRenderer(cv: HTMLCanvasElement): Renderer | null {
     sky = skySprite(W, H);
     hillsFar = hillsSprite(W, H, "#8ea6cf", 0.12, 2, "#5f78a6");
     hillsNear = hillsSprite(W, H, "#dbe6f6", 0.08, 3, "#2f5a4a");
-    team = teamFrames(L);
-    gift = giftSprite(L);
     sprites.clear();
+    sleighImg = deerImg = null;
+    gift = null;
+    void loadSprites().then(() => {
+      if (!L) return;
+      buildTeam();
+      gift = fitted("cadeau", 0.55 * L, 0.55 * L, "center");
+    });
   };
 
   const tile = (img: HTMLCanvasElement, offset: number, y: number) => {
@@ -459,7 +273,7 @@ export function createRenderer(cv: HTMLCanvasElement): Renderer | null {
   };
 
   const draw = (w: World | null, now: number, idle: boolean) => {
-    if (!sky || !team || !gift || !hillsFar || !hillsNear) return;
+    if (!sky || !hillsFar || !hillsNear) return;
     const dt = last ? Math.min((now - last) / 1000, 0.05) : 0;
     last = now;
     if (idle || !w) idleDist += dt * 0.12;
@@ -506,25 +320,25 @@ export function createRenderer(cv: HTMLCanvasElement): Renderer | null {
       // obstacles
       for (const o of w.obstacles) {
         const img = sprite(o.kind, o.variant);
-        const top = (SKY_TOP + KINDS[o.kind].lanes[0] * LANE_H - 0.15 * LANE_H) * H;
-        c.drawImage(img, o.x * W, top);
-        if (o.kind === "maison") {
-          // fumée de la cheminée
-          for (let i = 0; i < 3; i++) {
-            const t = ((now / 1000) * 0.8 + i / 3) % 1;
-            const sx = o.x * W + L * (0.74 - t * 0.25);
-            const sy = (SKY_TOP + 2 * LANE_H) * H - L * (0.02 + t * 0.35);
-            c.globalAlpha = 0.5 * (1 - t);
-            circle(c, sx, sy, L * (0.05 + t * 0.08), "#e6e9f2");
-          }
-          c.globalAlpha = 1;
-        }
+        if (!img) continue;
+        const [top] = KINDS[o.kind].lanes;
+        // Les nuages et la montgolfière flottent doucement.
+        const float = GROUNDED.includes(o.kind) ? 0 : Math.sin(now / 450 + o.id) * L * 0.04;
+        c.drawImage(img, o.x * W, (SKY_TOP + top * LANE_H) * H + float + (GROUNDED.includes(o.kind) ? 0 : 0.05 * L));
       }
-      // cadeaux bonus
+      // cadeaux bonus (halo doré + petit rebond)
       for (const b of w.bonuses) {
-        if (b.taken) continue;
+        if (b.taken || !gift) continue;
         const bob = Math.sin(now / 250 + b.id) * L * 0.05;
-        c.drawImage(gift, b.x * W - gift.width * 0.19, laneCenter(b.lane) * H - gift.height / 2 + bob);
+        const gx = b.x * W - L * 0.02;
+        const gy = laneCenter(b.lane) * H - gift.height / 2 + bob;
+        const r = gift.width * 0.75;
+        const halo = c.createRadialGradient(gx + gift.width / 2, gy + gift.height / 2, 0, gx + gift.width / 2, gy + gift.height / 2, r);
+        halo.addColorStop(0, "rgba(255,225,110,0.55)");
+        halo.addColorStop(1, "rgba(255,225,110,0)");
+        c.fillStyle = halo;
+        c.fillRect(gx + gift.width / 2 - r, gy + gift.height / 2 - r, r * 2, r * 2);
+        c.drawImage(gift, gx, gy);
       }
     }
 
@@ -542,13 +356,20 @@ export function createRenderer(cv: HTMLCanvasElement): Renderer | null {
       ty += f * f * (groundY - ty - L * 0.2);
       angle = f * 0.5;
     } else if (w && w.invincible > 0 && Math.floor(w.invincible * 10) % 2 === 0) alpha = 0.35;
-    const frame = Math.floor(now / 110) % 4;
-    c.save();
-    c.globalAlpha = alpha;
-    c.translate(tx + (SLEIGH_W / 2) * L, ty);
-    c.rotate(angle);
-    c.drawImage(team.frames[w?.status === "lost" ? 0 : frame], -(SLEIGH_W / 2) * L - team.ox, -team.oy);
-    c.restore();
+    if (sleighImg && deerImg) {
+      // Galop : les rennes montent et descendent un peu plus vite que le traîneau.
+      const running = w?.status !== "lost";
+      const deerBob = running ? Math.sin(now / 95) * L * 0.035 : 0;
+      const sleighBob = running ? Math.sin(now / 190 + 1) * L * 0.015 : 0;
+      c.save();
+      c.globalAlpha = alpha;
+      c.translate(tx + (SLEIGH_W / 2) * L, ty);
+      c.rotate(angle);
+      const x0 = -teamW / 2;
+      c.drawImage(sleighImg, x0, -teamH / 2 + sleighBob);
+      c.drawImage(deerImg, x0 + sleighImg.width - 1, -teamH / 2 + deerBob);
+      c.restore();
+    }
     if (w?.status === "won") {
       for (let i = 0; i < 8; i++) {
         const t = (now / 600 + i / 8) % 1;
@@ -606,14 +427,17 @@ export function createRenderer(cv: HTMLCanvasElement): Renderer | null {
       c.stroke();
     }
     // cadeaux attrapés
-    if (w.s.gifts) {
-      const gx = s * 0.8 + w.s.lives * s * 1.15 + s * 0.3;
-      c.drawImage(gift!, gx - s * 0.2, y - s * 0.25, s * 1.5, s * 1.5);
-      c.font = `900 ${Math.round(s)}px Nunito, sans-serif`;
-      c.textAlign = "left";
-      c.fillStyle = "#ffffff";
-      c.fillText(String(w.gifts), gx + s * 1.25, y + s * 0.9);
-    }
+    // cadeaux attrapés / demandés (doré une fois l'objectif atteint)
+    const gx = s * 0.8 + w.s.lives * s * 1.15 + s * 0.3;
+    if (gift) c.drawImage(gift, gx - s * 0.2, y - s * 0.25, s * 1.5, s * 1.5);
+    c.font = `900 ${Math.round(s)}px Nunito, sans-serif`;
+    c.textAlign = "left";
+    const label = `${w.gifts} / ${w.s.gifts_required}`;
+    c.lineWidth = s * 0.15;
+    c.strokeStyle = "rgba(0,0,0,0.45)";
+    c.strokeText(label, gx + s * 1.4, y + s * 0.9);
+    c.fillStyle = enoughGifts(w) ? C.gold : "#ffffff";
+    c.fillText(label, gx + s * 1.4, y + s * 0.9);
     // parcours : du traîneau jusqu'au village
     const x0 = W * 0.42;
     const x1 = W * 0.86;

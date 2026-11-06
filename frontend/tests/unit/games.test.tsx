@@ -7,6 +7,9 @@ import { MachineGame } from "../../src/games/MachineGame";
 import { TourneeGame } from "../../src/games/TourneeGame";
 import type { CodeContent, ConstellationContent, KidsGame, MachineContent, TourneeContent } from "../../src/services/types";
 
+// Le dessin sur canvas n'existe pas dans jsdom : illustrations « chargées » tout de suite, pas de rendu.
+vi.mock("../../src/games/tournee/draw", () => ({ createRenderer: () => null, loadSprites: () => Promise.resolve() }));
+
 const ok = { correct: true, completed: true, step: 0, hints: [] };
 const ko = { correct: false, completed: false, step: 0, hints: ["Comptez !"] };
 
@@ -102,15 +105,17 @@ describe("Machine à cadeaux", () => {
 describe("Tournée du traîneau", () => {
   const content: TourneeContent = {
     title: "t", instructions: "Évitez les cheminées !", level: "facile",
-    settings: { label: "Facile", duration: 60, lives: 5, speed_start: 0.22, speed_end: 0.3, gap_start: 2.6, gap_end: 1.9, double_chance: 0, gifts: true },
+    settings: { label: "Facile", duration: 120, gifts_required: 25, gifts_per_gap: 2, lives: 5, speed_start: 0.2, speed_end: 0.28, gap_start: 2.4, gap_end: 2, double_chance: 0 },
   };
 
-  it("écran d'accueil avec le niveau, puis décompte au départ", () => {
+  it("écran d'accueil avec le niveau, puis décompte au départ", async () => {
     vi.useFakeTimers();
     render(<TourneeGame game={game("tournee", content)} submit={vi.fn()} />);
+    await act(async () => {}); // illustrations chargées
     expect(screen.getByText("Évitez les cheminées !")).toBeInTheDocument();
     expect(screen.getByTestId("tournee-lives")).toHaveTextContent("5 vies");
-    expect(screen.getByText(/60 s · Facile/)).toBeInTheDocument();
+    expect(screen.getByText(/120 s · Facile/)).toBeInTheDocument();
+    expect(screen.getByTestId("tournee-goal")).toHaveTextContent("au moins 25 cadeaux");
     fireEvent.click(screen.getByText(/C'est parti/));
     expect(screen.getByTestId("tournee")).toHaveAttribute("data-phase", "countdown");
     for (let i = 0; i < 3; i++) act(() => vi.advanceTimersByTime(800));
