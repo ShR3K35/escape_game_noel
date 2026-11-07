@@ -46,6 +46,7 @@ class TeamCfg(BaseModel):
     color: str
     enigma: str
     description: str = ""
+    code_word: str = ""  # mot code révélé quand la mission de l'équipe est validée
 
 
 class VideoCfg(BaseModel):

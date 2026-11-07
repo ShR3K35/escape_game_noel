@@ -18,24 +18,28 @@ teams:
     color: "#9b1c2c"
     enigma: "Le tiroir secret des archives"
     description: "Retrouver le registre caché et ouvrir le tiroir."
+    code_word: "SOUS"  # mot révélé sur la TV quand la mission est validée
   - id: verte
     name: "Équipe Verte"
     theme: "Les Lumières"
     color: "#1f5130"
     enigma: "La séquence des couleurs"
     description: "Reconstituer la séquence ROUGE → BLEU → VERT → JAUNE."
+    code_word: "CANAPE"
   - id: bleue
     name: "Équipe Bleue"
     theme: "Les Témoins"
     color: "#1e3a6e"
     enigma: "La formule magique"
     description: "Interroger les témoins et découvrir la formule qui révèle l'indice du volet."
+    code_word: "COFFRE"
   - id: or
     name: "Équipe Or"
     theme: "Les Déchiffreurs"
     color: "#a07a2c"
     enigma: "Le message crypté"
     description: "Réunir les fragments détenus par les autres adultes et déchiffrer le message."
+    code_word: "MAIL"
 
 # Manifeste des vidéos : fichiers à déposer dans media/videos/.
 # Si un fichier manque, la TV affiche un écran de substitution (fallback_text) pendant fallback_seconds.

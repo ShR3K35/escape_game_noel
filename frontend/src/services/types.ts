@@ -43,6 +43,12 @@ export interface TeamSummary {
   theme: string;
   color: string;
   status: TeamStatus;
+  /** Mot code de l'équipe, révélé une fois la mission validée (toujours présent côté admin). */
+  code_word: string | null;
+  /** Ordre de validation (1 = première équipe à terminer), null si la mission n'est pas validée. */
+  rank: number | null;
+  /** Points gagnés : 5 pour la 1re équipe, 4, 3 puis 2. */
+  points: number;
 }
 
 export interface Team extends TeamSummary {

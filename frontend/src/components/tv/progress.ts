@@ -6,7 +6,16 @@ export const CELEBRATION_MS = 6500;
 export const KIDS_ICONS: Record<KidsGameId, string> = { constellation: "✨", machine: "⚙️", tournee: "🎅", code: "🛷" };
 
 export type Success =
-  | { key: string; kind: "team"; id: string; name: string; theme: string; color: string }
+  | {
+      key: string;
+      kind: "team";
+      id: string;
+      name: string;
+      theme: string;
+      color: string;
+      codeWord: string | null;
+      points: number;
+    }
   | { key: string; kind: "kids"; id: KidsGameId; title: string; all: boolean };
 
 /**
@@ -22,7 +31,16 @@ export function detectSuccesses(prev: PublicState | null, next: PublicState): Su
   for (const team of next.teams) {
     const before = prev.teams.find((t) => t.id === team.id);
     if (team.status === "VALIDEE" && before && before.status !== "VALIDEE") {
-      found.push({ key: `team-${team.id}-${stamp}`, kind: "team", id: team.id, name: team.name, theme: team.theme, color: team.color });
+      found.push({
+        key: `team-${team.id}-${stamp}`,
+        kind: "team",
+        id: team.id,
+        name: team.name,
+        theme: team.theme,
+        color: team.color,
+        codeWord: team.code_word,
+        points: team.points,
+      });
     }
   }
 

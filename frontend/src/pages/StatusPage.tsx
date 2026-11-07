@@ -22,8 +22,14 @@ export default function StatusPage() {
                   <span className="flex items-center gap-2 font-bold">
                     <span className="h-3 w-3 rounded-full" style={{ background: t.color }} />
                     {t.name} <span className="font-normal text-encre/70">— {t.theme}</span>
+                    {t.status === "VALIDEE" && t.code_word && (
+                      <span className="rounded bg-bordeaux-800 px-1.5 text-sm tracking-wider text-white">{t.code_word}</span>
+                    )}
                   </span>
-                  <span>{TEAM_LABELS[t.status]}</span>
+                  <span>
+                    {TEAM_LABELS[t.status]}
+                    {t.points > 0 && <strong className="ml-2">+{t.points} pts</strong>}
+                  </span>
                 </li>
               ))}
             </ul>

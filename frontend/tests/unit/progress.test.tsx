@@ -16,7 +16,16 @@ function state(teams: Record<string, PublicState["teams"][number]["status"]>, ki
     phase_changed_at: null,
     started_at: null,
     tv: { play: null, message: null, ambient: "neige", loop: {} as never, preload: [], show_progress: true, countdown: null },
-    teams: Object.entries(teams).map(([id, status]) => ({ id, name: `Équipe ${id}`, theme: `Thème ${id}`, color: "#900", status })),
+    teams: Object.entries(teams).map(([id, status]) => ({
+      id,
+      name: `Équipe ${id}`,
+      theme: `Thème ${id}`,
+      color: "#900",
+      status,
+      code_word: status === "VALIDEE" ? `MOT-${id}` : null,
+      rank: null,
+      points: status === "VALIDEE" ? 5 : 0,
+    })),
     kids_summary: { completed: kids.filter((k) => k === "completed").length, total: 4 },
     kids_games: ids.map((id, i) => ({ id, title: `Jeu ${id}`, status: kids[i] })),
     emergency_authorized: false,
@@ -33,7 +42,7 @@ describe("détection des succès", () => {
   it("une équipe validée", () => {
     const found = detectSuccesses(state({ rouge: "EN_COURS", verte: "VALIDEE" }, KIDS0), state({ rouge: "VALIDEE", verte: "VALIDEE" }, KIDS0));
     expect(found).toHaveLength(1);
-    expect(found[0]).toMatchObject({ kind: "team", id: "rouge", theme: "Thème rouge" });
+    expect(found[0]).toMatchObject({ kind: "team", id: "rouge", theme: "Thème rouge", codeWord: "MOT-rouge", points: 5 });
   });
 
   it("pas d'animation pour une invalidation ou un passage en cours", () => {
@@ -77,11 +86,23 @@ describe("affichage", () => {
 
   it("animation équipe et animation lutins", () => {
     const { rerender } = render(
-      <SuccessCelebration success={{ key: "a", kind: "team", id: "rouge", name: "Équipe Rouge", theme: "Les Archives", color: "#900" }} />,
+      <SuccessCelebration
+        success={{ key: "a", kind: "team", id: "rouge", name: "Équipe Rouge", theme: "Les Archives", color: "#900", codeWord: "SOUS", points: 5 }}
+      />,
     );
     expect(screen.getByTestId("tv-success")).toHaveTextContent("Énigme résolue !");
+    expect(screen.getByTestId("tv-success")).toHaveTextContent("SOUS");
+    expect(screen.getByTestId("tv-success")).toHaveTextContent("+5 points");
     expect(screen.getByTestId("tv-success")).toHaveTextContent("Équipe Rouge — Les Archives");
     rerender(<SuccessCelebration success={{ key: "b", kind: "kids", id: "code", title: "Le code du traîneau", all: true }} />);
     expect(screen.getByTestId("tv-success")).toHaveTextContent("Mission des lutins accomplie !");
+  });
+
+  it("mot code et points affichés seulement pour une équipe validée", () => {
+    render(<ProgressOverlay state={state({ rouge: "VALIDEE", verte: "EN_COURS" }, KIDS0)} />);
+    expect(screen.getByTestId("tv-code-word-rouge")).toHaveTextContent("MOT-rouge");
+    expect(screen.getByTestId("tv-points-rouge")).toHaveTextContent("+5");
+    expect(screen.queryByTestId("tv-code-word-verte")).toBeNull();
+    expect(screen.queryByTestId("tv-points-verte")).toBeNull();
   });
 });
