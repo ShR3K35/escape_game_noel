@@ -28,7 +28,7 @@ export default function StatusPage() {
                   </span>
                   <span>
                     {TEAM_LABELS[t.status]}
-                    {t.points > 0 && <strong className="ml-2">+{t.points} pts</strong>}
+                    {t.points > 0 && <strong className="ml-2">{t.points} pts</strong>}
                   </span>
                 </li>
               ))}

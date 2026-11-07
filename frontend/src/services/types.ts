@@ -47,7 +47,11 @@ export interface TeamSummary {
   code_word: string | null;
   /** Ordre de validation (1 = première équipe à terminer), null si la mission n'est pas validée. */
   rank: number | null;
-  /** Points gagnés : 5 pour la 1re équipe, 4, 3 puis 2. */
+  /** Points de mission : 5 pour la 1re équipe validée, 4, 3 puis 2. */
+  mission_points: number;
+  /** Points bonus : 1 par mission personnelle réussie par un joueur (ajoutés par l'admin). */
+  bonus: number;
+  /** Total : points de mission + bonus. */
   points: number;
 }
 

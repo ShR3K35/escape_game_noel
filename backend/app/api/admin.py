@@ -28,6 +28,10 @@ class TeamBody(BaseModel):
     status: Literal["NON_COMMENCE", "EN_COURS", "VALIDEE"]
 
 
+class BonusBody(BaseModel):
+    delta: Literal[1, -1]
+
+
 class PlayBody(BaseModel):
     video_id: str = Field(min_length=1, max_length=60)
 
@@ -124,6 +128,12 @@ async def backup(request: Request, svc=Depends(services)):
 @router.post("/teams/{team_id}")
 async def team(team_id: str, body: TeamBody, request: Request, svc=Depends(services)):
     return await command(request, lambda s: svc.game.set_team_status(s, team_id, body.status))
+
+
+@router.post("/teams/{team_id}/bonus")
+async def team_bonus(team_id: str, body: BonusBody, request: Request, svc=Depends(services)):
+    """Point bonus : un joueur de l'équipe a réussi sa mission personnelle (+1) ou correction (-1)."""
+    return await command(request, lambda s: svc.game.add_team_bonus(s, team_id, body.delta))
 
 
 # ----------------------------------------------------------------------- TV
