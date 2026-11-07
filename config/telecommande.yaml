@@ -1,0 +1,24 @@
+# Télécommande Zigbee 4 boutons (MOES ESW-0ZAA-EU, Zigbee2MQTT : TS004F_1 en mode « event ») reliée à la ZiGate du Raspberry Pi.
+# Lu par le conteneur « telecommande » (backend/app/remote/bridge.py) : redémarrer ce conteneur après
+# modification :  docker compose -f compose.prod.yml restart telecommande
+#
+# Les actions sont celles du boîtier Matter (backend/app/services/actions.py) :
+#   1 à 4  valider la mission de l'équipe rouge, verte, bleue, or
+#   5      protocole d'urgence (secours des lutins si le MJ l'a autorisé)
+#   6 à 10 libres (l'appui est seulement journalisé)
+telecommande:
+  # Nom de la télécommande dans Zigbee2MQTT (à renommer ainsi après l'appairage), ou "*" pour n'importe laquelle.
+  device: telecommande
+  # Sans appui pendant ce délai (secondes), la saisie en cours est effacée.
+  reset_seconds: 4
+  # La télécommande transforme deux appuis rapides sur le même bouton en un « double » : il compte pour deux.
+  double_counts_as_two: true
+  # Un appui long sur n'importe quel bouton efface la saisie.
+  hold_resets: true
+  # Action déclenchée quand une saisie d'au moins la longueur de la plus courte combinaison est abandonnée
+  # (mauvais code). Laisser vide pour ne rien faire.
+  wrong_action:
+  sequences:
+    - name: code secret
+      buttons: [1, 3, 3, 2, 4]
+      action: 6

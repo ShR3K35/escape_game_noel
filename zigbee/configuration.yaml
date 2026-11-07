@@ -1,0 +1,25 @@
+# Modèle de configuration Zigbee2MQTT, copié dans zigbee/data/configuration.yaml au premier déploiement
+# (scripts/deploy-pi.sh). Zigbee2MQTT complète ensuite ce fichier (clé réseau, appareils appairés) :
+# modifier zigbee/data/configuration.yaml sur le Pi, pas ce modèle.
+homeassistant:
+  enabled: false
+mqtt:
+  base_topic: zigbee2mqtt
+  server: mqtt://mosquitto:1883
+serial:
+  # Le port réel de la ZiGate (ZIGBEE_SERIAL_PORT dans .env) est monté sous ce nom dans le conteneur.
+  port: /dev/ttyZIGATE
+  adapter: zigate
+advanced:
+  # Générés au premier démarrage puis conservés : ne pas les changer, sinon il faut tout réappairer.
+  network_key: GENERATE
+  pan_id: GENERATE
+  ext_pan_id: GENERATE
+  # La ZiGate ne sait pas changer de canal après coup. 15 évite en général le Wi-Fi 2,4 GHz (canaux 1, 6, 11).
+  channel: 15
+  log_level: info
+  last_seen: ISO_8601
+frontend:
+  # Interface web d'appairage : http://noel2026.local:8081 (port publié dans compose.prod.yml).
+  enabled: true
+  port: 8080

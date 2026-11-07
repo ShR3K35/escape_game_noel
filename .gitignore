@@ -29,3 +29,6 @@ Thumbs.db
 
 # Firmware : secrets locaux
 firmware/esp32-matter/escape_noel_matter/config.h
+
+# Données Zigbee2MQTT du Raspberry Pi (clé réseau, appareils appairés)
+zigbee/data/

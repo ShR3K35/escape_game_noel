@@ -1,5 +1,7 @@
 # Production Raspberry Pi (ARM64) : http://noel2026.local
 #   docker compose -f compose.prod.yml up -d --build      (ou scripts/deploy-pi.sh)
+# Télécommande Zigbee (profil « zigbee », activé par COMPOSE_PROFILES=zigbee dans .env) :
+#   mosquitto + zigbee2mqtt (ZiGate) + telecommande (combinaisons -> actions). Voir docs/telecommande-zigbee.md
 name: noel2026
 
 services:
@@ -26,3 +28,58 @@ services:
     logging:
       driver: json-file
       options: { max-size: "10m", max-file: "5" }
+
+  mosquitto:
+    profiles: [zigbee]
+    image: eclipse-mosquitto:2.0.22
+    volumes:
+      - ./zigbee/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: { max-size: "5m", max-file: "3" }
+
+  zigbee2mqtt:
+    profiles: [zigbee]
+    image: koenkk/zigbee2mqtt:2.14.2
+    depends_on: [mosquitto]
+    devices:
+      # Port série de la ZiGate sur le Pi (USB : /dev/ttyUSB0 ; PiZiGate sur GPIO : /dev/ttyAMA0).
+      - "${ZIGBEE_SERIAL_PORT:-/dev/ttyUSB0}:/dev/ttyZIGATE"
+    ports:
+      # Interface d'appairage, réseau local uniquement.
+      - "${ZIGBEE_FRONTEND_PORT:-8081}:8080"
+    environment:
+      TZ: Europe/Paris
+    volumes:
+      - ./zigbee/data:/app/data
+      - /run/udev:/run/udev:ro
+    restart: unless-stopped
+    stop_grace_period: 15s
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  telecommande:
+    profiles: [zigbee]
+    image: noel2026:latest
+    command: ["python", "-m", "app.remote.bridge"]
+    depends_on: [mosquitto, app]
+    env_file:
+      - path: .env
+        required: true
+    environment:
+      APP_ENV: production
+      API_URL: http://app:8080
+      MQTT_HOST: mosquitto
+      REMOTE_CONFIG: /app/config/telecommande.yaml
+    user: "${APP_UID:-1000}:${APP_GID:-1000}"
+    volumes:
+      - ./config:/app/config:ro
+    # Pas de serveur HTTP dans ce conteneur : on neutralise le HEALTHCHECK de l'image.
+    healthcheck:
+      disable: true
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: { max-size: "5m", max-file: "3" }

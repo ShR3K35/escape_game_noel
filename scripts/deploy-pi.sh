@@ -91,6 +91,18 @@ grep -q '^ADMIN_PASSWORD_HASH=scrypt:' .env || { echo "ADMIN_PASSWORD_HASH absen
 mkdir -p data media/videos backups
 HTTP_PORT="$(grep -E '^HTTP_PORT=' .env | cut -d= -f2)"; export HTTP_PORT="${HTTP_PORT:-80}"
 
+if grep -qE '^COMPOSE_PROFILES=.*zigbee' .env; then
+  say "Télécommande Zigbee (ZiGate)"
+  mkdir -p zigbee/data
+  [[ -f zigbee/data/configuration.yaml ]] || cp zigbee/configuration.yaml zigbee/data/configuration.yaml
+  ZIGBEE_PORT="$(grep -E '^ZIGBEE_SERIAL_PORT=' .env | cut -d= -f2)"; ZIGBEE_PORT="${ZIGBEE_PORT:-/dev/ttyUSB0}"
+  if [[ ! -e "$ZIGBEE_PORT" ]]; then
+    echo "ZiGate introuvable sur $ZIGBEE_PORT : branchez-la ou corrigez ZIGBEE_SERIAL_PORT dans .env" >&2
+    echo "(ou retirez COMPOSE_PROFILES=zigbee pour démarrer sans la télécommande)." >&2
+    exit 1
+  fi
+fi
+
 # ------------------------------------------------------- Build + démarrage
 if (( BUILD )); then
   say "Construction de l'image et démarrage (quelques minutes la première fois)"
