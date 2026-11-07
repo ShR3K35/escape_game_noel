@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Bannière Android TV 320x180 : fond sapin, étoile dorée, ruban rouge. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="320dp" android:height="180dp"
+    android:viewportWidth="320" android:viewportHeight="180">
+    <path android:fillColor="#0D2B1A" android:pathData="M0,0h320v180h-320z" />
+    <path android:fillColor="#9B1C2C" android:pathData="M0,120h320v22h-320z" />
+    <path android:fillColor="#1F5C36" android:pathData="M160,40 L205,120 L115,120 Z" />
+    <path android:fillColor="#F5D77A"
+        android:pathData="M160,14 L167,32 L186,32 L171,43 L177,61 L160,50 L143,61 L149,43 L134,32 L153,32 Z" />
+    <path android:fillColor="#F5D77A" android:pathData="M152,142h16v20h-16z" />
+</vector>
