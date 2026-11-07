@@ -5,7 +5,7 @@
 ```text
  Téléphone MJ (/admin) ──┐  REST /api/admin/* (cookie de session)
  Tablette (/lutins) ─────┤  REST /api/kids/*  (essais de mini-jeux uniquement)
- TV Chromium (/tv) ──────┤  REST /api/tv/ended (fin de lecture uniquement)
+ TV Google TV (/tv) ─────┤  REST /api/tv/ended (fin de lecture uniquement)
  ESP32 Matter ───────────┤  REST /api/devices/actions/{1..10} (jeton X-Device-Token)
                          │  WebSocket /ws?channel=admin|tv|kids|status (lecture seule, poussé par le serveur)
                          ▼

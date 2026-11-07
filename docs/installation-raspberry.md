@@ -1,6 +1,7 @@
 # Installation sur Raspberry Pi 4 / 5
 
-Cible : Raspberry Pi OS **64 bits** avec bureau (Bookworm ou plus récent), TV branchée en HDMI.
+Cible : Raspberry Pi OS **64 bits** (Bookworm ou plus récent). Le Pi n'est que le serveur : la TV affiche `/tv`
+via l'appli « TV Noël » du Google TV Streamer (`tv-kiosk/`, voir `tv-kiosk/setup-tv.sh`).
 
 ## 1. Préparer la carte SD
 
@@ -13,7 +14,7 @@ plus fiable le soir de la fête), SSH activé.
 sudo apt-get update && sudo apt-get install -y git
 git clone <url-du-dépôt> ~/noel2026      # ou copier le dossier par clé USB / scp
 cd ~/noel2026
-./scripts/deploy-pi.sh --kiosk
+./scripts/deploy-pi.sh
 ```
 
 Le script (relançable sans risque) :
@@ -22,11 +23,9 @@ Le script (relançable sans risque) :
 2. règle le nom d'hôte `noel2026` et installe/active **Avahi** (mDNS) ;
 3. crée `.env` : demande le mot de passe du MJ et n'enregistre que son **hash** ;
 4. construit l'image ARM64 et démarre `compose.prod.yml` (`restart: unless-stopped`, healthcheck, logs limités) ;
-5. avec `--kiosk` : installe Chromium et la police emoji, lance `/tv` en plein écran à l'ouverture de session,
-   active la connexion automatique et désactive la mise en veille de l'écran ;
-6. affiche les adresses d'accès.
+5. affiche les adresses d'accès.
 
-Redémarrez (`sudo reboot`) : la TV doit afficher le bureau du Père Noël toute seule.
+Sur le Google TV, lancez l'appli « TV Noël » : elle affiche le bureau du Père Noël en plein écran.
 
 ## 3. Déposer les vidéos
 
@@ -35,8 +34,8 @@ scp *.mp4 pi@noel2026.local:~/noel2026/media/videos/
 docker compose -f compose.prod.yml exec app python -m app.cli check-config
 ```
 
-Format recommandé : MP4 H.264 (profil High, 1080p max) + AAC, `-movflags +faststart`. Le Pi 4/5 décode le
-H.264 matériellement dans Chromium ; évitez le HEVC/H.265.
+Format recommandé : MP4 H.264 (profil High, 1080p max) + AAC, `-movflags +faststart`. Le Google TV décode le
+H.264 matériellement ; évitez le HEVC/H.265 par prudence.
 
 ## Accès réseau
 
@@ -64,13 +63,12 @@ Ne créez **aucune** redirection de port vers le Pi sur la box.
 
 ## Son et lecture automatique (autoplay)
 
-- Les navigateurs bloquent la lecture d'une vidéo **avec son** sans interaction de l'utilisateur. Le kiosk lance
-  Chromium avec `--autoplay-policy=no-user-gesture-required`, ce qui lève cette restriction.
+- Les navigateurs bloquent la lecture d'une vidéo **avec son** sans interaction de l'utilisateur. L'appli
+  « TV Noël » autorise la lecture automatique dans sa WebView, ce qui lève cette restriction.
 - Dans un navigateur normal (tests sur PC), si le son est bloqué, la vidéo démarre en muet et un bouton
   « 🔊 Activer le son » apparaît sur la TV : un clic suffit.
-- Sortie audio HDMI : `sudo raspi-config` → *System Options* → *Audio* → HDMI, ou clic droit sur l'icône
-  volume du bureau. Réglez le volume du Pi à 100 % et ajustez avec la télécommande de la TV.
-- Si la TV n'affiche rien au démarrage : vérifiez l'entrée HDMI, puis `~/.local/bin/noel-kiosk.sh` à la main.
+- Si la TV n'affiche rien : relancez l'appli « TV Noël » sur le Google TV et vérifiez que
+  `http://<IP du Pi>/api/health` répond.
 
 ## Raspberry Pi 3 (1 Go de RAM)
 
@@ -83,33 +81,12 @@ Le jeu tourne sur un Pi 3 B, avec quelques adaptations :
   docker buildx build --platform linux/arm64 --target runtime -t noel2026:arm64 --load .
   docker save noel2026:arm64 | gzip -1 | ssh pi@noel2026.local 'gunzip | docker load && docker tag noel2026:arm64 noel2026:latest'
   # sur le Pi
-  KIOSK_MODE=1280x720 ./scripts/deploy-pi.sh --kiosk --no-build
-  ```
-
-- **Affichage en 720p** : `KIOSK_MODE=1280x720` force la résolution HDMI à l'ouverture de session (2,25× moins de
-  pixels à composer qu'en 1080p).
-- **Vidéos allégées** : Chromium décode la vidéo en logiciel sur le Pi 3. Réencoder en 720p, H.264 Main, 2 Mbit/s max :
-
-  ```bash
-  ./scripts/encode-pi.sh media/videos-pi3 media/videos/*.mp4   # les originaux ne sont pas modifiés
+  ./scripts/deploy-pi.sh --no-build
   ```
 
 - **Mémoire** : arrêter tout autre service lourd (Nextcloud, etc.) et `sudo systemctl mask --now packagekit`.
 - **Alimentation** : bloc officiel 5,1 V / 2,5 A. `vcgencmd get_throttled` doit afficher `0x0` ; sinon le processeur
-  est bridé à 600 MHz et les vidéos saccadent.
-
-### Écran en 1024×768 avec bandes noires et sans son
-
-Le Pi n'a pas pu lire l'identité (EDID) de l'écran : écran éteint ou sur une autre entrée au démarrage, câble ou
-adaptateur douteux, ou EDID d'usine défectueux (`dmesg | grep -i edid` → « checksum is invalid »). Sans EDID, le Pi
-choisit un mode 4:3 de secours et n'envoie pas le son sur le HDMI.
-
-1. Allumer l'écran sur la bonne entrée **avant** le Pi, ou débrancher/rebrancher le câble HDMI.
-2. Si l'EDID est défectueux, le lire sur le bus DDC (`/dev/i2c-2` sur Pi 3), corriger l'octet 127 du bloc 0 (somme
-   des 128 octets ≡ 0 mod 256), l'installer dans `/lib/firmware/edid/<écran>.bin`, l'inclure dans l'initramfs
-   (hook dans `/etc/initramfs-tools/hooks/` puis `sudo update-initramfs -u`) et ajouter à `/boot/firmware/cmdline.txt` :
-   `drm.edid_firmware=HDMI-A-1:edid/<écran>.bin`. À retirer si l'écran change.
-3. Vérifier la sortie son : `wpctl status` → le sink « HDMI » doit porter l'astérisque (`wpctl set-default <id>`).
+  est bridé à 600 MHz.
 
 ### Accès depuis un téléphone Android
 

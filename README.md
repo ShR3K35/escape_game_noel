@@ -28,7 +28,7 @@ Pour essayer : ouvrez `/admin` dans un navigateur et `/tv` dans un autre, clique
 
 ```bash
 git clone <dépôt> ~/noel2026 && cd ~/noel2026
-./scripts/deploy-pi.sh --kiosk     # Docker, nom d'hôte noel2026, Avahi, mot de passe, kiosk TV
+./scripts/deploy-pi.sh             # Docker, nom d'hôte noel2026, Avahi, mot de passe
 ```
 
 Puis `http://noel2026.local/admin` depuis le téléphone (ou l'IP affichée par `./scripts/show-ip.sh`).
@@ -56,6 +56,6 @@ backend/    FastAPI : app/{api,core,models,services}, alembic/, tests/ (pytest)
 frontend/   React : src/{pages,components,games,hooks,services}, tests/{unit (Vitest), e2e (Playwright)}
 config/     game.yaml : équipes, vidéos, messages, planning, contenu des mini-jeux
 media/      videos/ : MP4 locaux (non versionnés)
-scripts/    dev.ps1, test.ps1, test.sh, deploy-pi.sh, backup.sh, show-ip.sh, kiosk/, generate-demo-videos.sh
+scripts/    dev.ps1, test.ps1, test.sh, deploy-pi.sh, backup.sh, show-ip.sh, generate-demo-videos.sh
 compose.yml / compose.dev.yml / compose.prod.yml / Dockerfile / .env.example
 ```

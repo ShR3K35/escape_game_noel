@@ -2,7 +2,6 @@
 # Installation et mise à jour sur Raspberry Pi 4/5 (Raspberry Pi OS 64 bits).
 #
 #   ./scripts/deploy-pi.sh              installation ou mise à jour (idempotent)
-#   ./scripts/deploy-pi.sh --kiosk      + configuration de l'affichage TV (Chromium plein écran au démarrage)
 #   ./scripts/deploy-pi.sh --update     git pull puis reconstruction
 #   ./scripts/deploy-pi.sh --no-hostname  ne pas renommer la machine
 #   ./scripts/deploy-pi.sh --no-build     utiliser l'image noel2026:latest déjà chargée (docker load),
@@ -16,14 +15,13 @@ ROOT="$PWD"
 HOSTNAME_TARGET="${NOEL_HOSTNAME:-noel2026}"
 COMPOSE=(docker compose -f compose.prod.yml)
 
-KIOSK=0; UPDATE=0; SET_HOSTNAME=1; BUILD=1
+UPDATE=0; SET_HOSTNAME=1; BUILD=1
 for arg in "$@"; do
   case "$arg" in
-    --kiosk) KIOSK=1 ;;
     --update) UPDATE=1 ;;
     --no-hostname) SET_HOSTNAME=0 ;;
     --no-build) BUILD=0 ;;
-    -h|--help) sed -n '2,14p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,13p' "$0"; exit 0 ;;
     *) echo "option inconnue : $arg" >&2; exit 2 ;;
   esac
 done
@@ -126,10 +124,5 @@ if [[ -z "${OK:-}" ]]; then
   exit 1
 fi
 curl -fsS "http://localhost:${HTTP_PORT:-80}/api/health"; echo
-
-if (( KIOSK )); then
-  say "Configuration du mode kiosk (TV)"
-  "$ROOT/scripts/kiosk/setup-kiosk.sh"
-fi
 
 "$ROOT/scripts/show-ip.sh"
