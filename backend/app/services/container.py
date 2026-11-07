@@ -25,6 +25,10 @@ log = logging.getLogger("noel2026")
 IDEMPOTENCY_TTL = timedelta(hours=24)
 
 
+# Champs d'équipe exposés aux écrans publics (TV, page d'état) ; le mot code est traité à part.
+PUBLIC_TEAM_KEYS = ("id", "name", "theme", "color", "status", "rank", "mission_points", "bonus", "points")
+
+
 class Services:
     def __init__(self, settings: Settings, cfg: AppConfig, session_factory: sessionmaker[Session], clock: Clock):
         self.settings = settings
@@ -80,7 +84,7 @@ class Services:
         return {"server_time": iso(self.clock()), "title": self.cfg.game.title, "phase": st.phase,
                 "phase_changed_at": iso(st.phase_changed_at), "started_at": iso(st.started_at),
                 "tv": self.game.tv_view(s),
-                "teams": [{k: t[k] for k in ("id", "name", "theme", "color", "status", "rank", "points")}
+                "teams": [{k: t[k] for k in PUBLIC_TEAM_KEYS}
                           # le mot code n'est révélé qu'une fois la mission validée
                           | {"code_word": t["code_word"] if t["status"] == "VALIDEE" else None}
                           for t in self.game.teams_view(s)],

@@ -102,7 +102,7 @@ export function ProgressOverlay({ state, highlight }: { state: PublicState; high
               </span>
               {t.points > 0 && (
                 <span data-testid={`tv-points-${t.id}`} className="shrink-0 font-display text-[1.15vw] font-extrabold text-or-300">
-                  +{t.points}
+                  {t.points} pts
                 </span>
               )}
               <TeamStatusBadge status={t.status} />

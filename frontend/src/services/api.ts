@@ -54,6 +54,7 @@ export const api = {
 
   // Équipes
   setTeam: (teamId: string, status: TeamStatus) => post(`/api/admin/teams/${teamId}`, { status }),
+  teamBonus: (teamId: string, delta: 1 | -1) => post(`/api/admin/teams/${teamId}/bonus`, { delta }),
 
   // Télévision
   play: (videoId: string) => post("/api/admin/tv/play", { video_id: videoId }),

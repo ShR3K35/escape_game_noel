@@ -24,6 +24,8 @@ function state(teams: Record<string, PublicState["teams"][number]["status"]>, ki
       status,
       code_word: status === "VALIDEE" ? `MOT-${id}` : null,
       rank: null,
+      mission_points: status === "VALIDEE" ? 5 : 0,
+      bonus: 0,
       points: status === "VALIDEE" ? 5 : 0,
     })),
     kids_summary: { completed: kids.filter((k) => k === "completed").length, total: 4 },
@@ -101,7 +103,7 @@ describe("affichage", () => {
   it("mot code et points affichés seulement pour une équipe validée", () => {
     render(<ProgressOverlay state={state({ rouge: "VALIDEE", verte: "EN_COURS" }, KIDS0)} />);
     expect(screen.getByTestId("tv-code-word-rouge")).toHaveTextContent("MOT-rouge");
-    expect(screen.getByTestId("tv-points-rouge")).toHaveTextContent("+5");
+    expect(screen.getByTestId("tv-points-rouge")).toHaveTextContent("5 pts");
     expect(screen.queryByTestId("tv-code-word-verte")).toBeNull();
     expect(screen.queryByTestId("tv-points-verte")).toBeNull();
   });

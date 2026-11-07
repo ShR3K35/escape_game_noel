@@ -39,7 +39,7 @@ export function detectSuccesses(prev: PublicState | null, next: PublicState): Su
         theme: team.theme,
         color: team.color,
         codeWord: team.code_word,
-        points: team.points,
+        points: team.mission_points,
       });
     }
   }

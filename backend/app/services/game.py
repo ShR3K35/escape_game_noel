@@ -132,6 +132,7 @@ class GameService:
         self._touch(st)
         for row in s.query(TeamProgress).all():
             row.status = "NON_COMMENCE"
+            row.bonus = 0
             row.updated_at = self.clock()
         log_event(s, self.clock, "game_reset", "Partie réinitialisée", None, source)
 
@@ -237,6 +238,24 @@ class GameService:
                       f"{team.name} : {TEAM_LABELS[previous]} → {TEAM_LABELS[step]}",
                       {"team": team_id, "from": previous, "to": step}, source)
         return {"changed": True, "status": target}
+
+    def add_team_bonus(self, s: Session, team_id: str, delta: int, source: str = "admin") -> dict:
+        """Ajoute (delta=1) ou retire (delta=-1) un point bonus : mission personnelle réussie par un joueur."""
+        team = next((t for t in self.cfg.teams if t.id == team_id), None)
+        if team is None:
+            raise GameError(f"équipe inconnue : {team_id}", 404)
+        if delta not in (1, -1):
+            raise GameError("le bonus s'ajoute ou se retire un point à la fois", 422)
+        row = s.get(TeamProgress, team_id)
+        current = row.bonus or 0
+        if current + delta < 0:
+            raise GameError(f"{team.name} n'a aucun point bonus à retirer", 409)
+        row.bonus = current + delta
+        verb = "ajouté" if delta > 0 else "retiré"
+        log_event(s, self.clock, "team_bonus",
+                  f"{team.name} : point bonus {verb} (bonus {row.bonus})",
+                  {"team": team_id, "delta": delta, "bonus": row.bonus}, source)
+        return {"changed": True, "bonus": row.bonus}
 
     # ----------------------------------------------------------------- vidéos
     def video_available(self, file: str) -> bool:
@@ -408,9 +427,11 @@ class GameService:
         views = []
         for t in self.cfg.teams:
             rank = order.index(t.id) + 1 if t.id in order else None
-            points = TEAM_POINTS[min(rank, len(TEAM_POINTS)) - 1] if rank else 0
+            mission_points = TEAM_POINTS[min(rank, len(TEAM_POINTS)) - 1] if rank else 0
+            bonus = rows[t.id].bonus or 0
             views.append({"id": t.id, "name": t.name, "theme": t.theme, "color": t.color, "enigma": t.enigma,
                           "description": t.description, "status": rows[t.id].status,
                           "updated_at": iso(rows[t.id].updated_at), "code_word": t.code_word or None,
-                          "rank": rank, "points": points})
+                          "rank": rank, "mission_points": mission_points, "bonus": bonus,
+                          "points": mission_points + bonus})
         return views

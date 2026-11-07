@@ -39,6 +39,8 @@ class TeamProgress(Base):
 
     team_id: Mapped[str] = mapped_column(String(40), primary_key=True)
     status: Mapped[str] = mapped_column(String(20), default="NON_COMMENCE")
+    # Points bonus : 1 par mission personnelle réussie par un joueur de l'équipe (ajoutés par l'admin).
+    bonus: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 

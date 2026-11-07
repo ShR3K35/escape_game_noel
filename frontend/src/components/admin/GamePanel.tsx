@@ -223,7 +223,8 @@ export function GamePanel({ state, clockOffset }: { state: AdminState; clockOffs
                 <span className="rounded bg-or-500 px-1 text-xs font-extrabold tracking-wider text-bois-950">{t.code_word}</span>
               )}
               <span className="ml-auto shrink-0 text-xs text-parchemin-200/70">
-                {t.points > 0 ? `+${t.points} pts` : TEAM_LABELS[t.status]}
+                {TEAM_LABELS[t.status]}
+                {t.points > 0 && <strong className="ml-1 text-or-300">· {t.points} pts</strong>}
               </span>
             </li>
           ))}

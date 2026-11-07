@@ -135,6 +135,26 @@ def test_code_word_revealed_only_when_validated(admin, client):
     assert public["rouge"]["code_word"] is None
 
 
+def test_team_bonus_points(admin, client):
+    assert admin.post("/api/admin/teams/rouge/bonus", json={"delta": -1}).status_code == 409
+    for _ in range(2):
+        admin.post("/api/admin/teams/rouge/bonus", json={"delta": 1})
+    admin.post("/api/admin/teams/rouge", json={"status": "VALIDEE"})
+    rouge = next(t for t in admin.get("/api/admin/state").json()["teams"] if t["id"] == "rouge")
+    assert (rouge["mission_points"], rouge["bonus"], rouge["points"]) == (5, 2, 7)
+    assert admin.post("/api/admin/teams/rouge/bonus", json={"delta": -1}).json()["bonus"] == 1
+    public = next(t for t in client.get("/api/public/state").json()["teams"] if t["id"] == "rouge")
+    assert public["points"] == 6
+    # le bonus compte même sans mission validée, et la remise à zéro l'efface
+    admin.post("/api/admin/teams/verte/bonus", json={"delta": 1})
+    verte = next(t for t in admin.get("/api/admin/state").json()["teams"] if t["id"] == "verte")
+    assert (verte["rank"], verte["points"]) == (None, 1)
+    assert admin.post("/api/admin/teams/verte/bonus", json={"delta": 2}).status_code == 422
+    assert admin.post("/api/admin/teams/violette/bonus", json={"delta": 1}).status_code == 404
+    admin.post("/api/admin/game/reset", json={"confirm": True})
+    assert {t["bonus"] for t in admin.get("/api/admin/state").json()["teams"]} == {0}
+
+
 def test_team_validation_errors(admin):
     assert admin.post("/api/admin/teams/violette", json={"status": "EN_COURS"}).status_code == 404
     assert admin.post("/api/admin/teams/rouge", json={"status": "GAGNEE"}).status_code == 422
