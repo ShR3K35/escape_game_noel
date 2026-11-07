@@ -219,7 +219,12 @@ export function GamePanel({ state, clockOffset }: { state: AdminState; clockOffs
             <li key={t.id} className="flex items-center gap-2 rounded-lg bg-black/25 px-2 py-1.5">
               <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: t.color }} />
               <span className="truncate">{t.theme}</span>
-              <span className="ml-auto text-xs text-parchemin-200/70">{TEAM_LABELS[t.status]}</span>
+              {t.status === "VALIDEE" && t.code_word && (
+                <span className="rounded bg-or-500 px-1 text-xs font-extrabold tracking-wider text-bois-950">{t.code_word}</span>
+              )}
+              <span className="ml-auto shrink-0 text-xs text-parchemin-200/70">
+                {t.points > 0 ? `+${t.points} pts` : TEAM_LABELS[t.status]}
+              </span>
             </li>
           ))}
         </ul>

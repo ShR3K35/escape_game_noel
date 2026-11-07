@@ -80,7 +80,9 @@ class Services:
         return {"server_time": iso(self.clock()), "title": self.cfg.game.title, "phase": st.phase,
                 "phase_changed_at": iso(st.phase_changed_at), "started_at": iso(st.started_at),
                 "tv": self.game.tv_view(s),
-                "teams": [{k: t[k] for k in ("id", "name", "theme", "color", "status")}
+                "teams": [{k: t[k] for k in ("id", "name", "theme", "color", "status", "rank", "points")}
+                          # le mot code n'est révélé qu'une fois la mission validée
+                          | {"code_word": t["code_word"] if t["status"] == "VALIDEE" else None}
                           for t in self.game.teams_view(s)],
                 "kids_summary": {"completed": kids["completed_count"], "total": kids["total"]},
                 "kids_games": [{"id": g["id"], "title": g["title"], "status": g["status"]} for g in kids["games"]],

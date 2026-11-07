@@ -9,7 +9,7 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 
 from app.core.game_config import PHASES, AppConfig
-from app.models import GameState, TeamProgress
+from app.models import EventLog, GameState, TeamProgress
 from app.services.common import Clock, GameError, iso, log_event
 
 log = logging.getLogger("noel2026.game")
@@ -34,6 +34,8 @@ TEAM_TRANSITIONS: dict[str, set[str]] = {
     "EN_COURS": {"VALIDEE", "NON_COMMENCE"},
     "VALIDEE": {"EN_COURS"},
 }
+# Points gagnés selon l'ordre de validation des missions : 1re équipe, 2e, 3e, 4e et suivantes.
+TEAM_POINTS = (5, 4, 3, 2)
 TEAM_LABELS = {"NON_COMMENCE": "non commencée", "EN_COURS": "en cours", "VALIDEE": "validée"}
 
 AMBIENTS = ("aucun", "neige", "etoiles", "magie")
@@ -389,8 +391,26 @@ class GameService:
                 "show_progress": bool(st.tv_show_progress), "countdown": countdown,
                 "loop": self.video_payload(self.cfg.loop_video.id), "preload": preload}
 
+    def _validation_order(self, s: Session, rows: dict[str, TeamProgress]) -> list[str]:
+        """Équipes validées, dans l'ordre de leur (dernière) validation. Une équipe invalidée puis revalidée
+        repasse derrière celles déjà validées."""
+        validated = {tid for tid, r in rows.items() if r.status == "VALIDEE"}
+        last_event: dict[str, int] = {}
+        for e in s.query(EventLog).filter(EventLog.type == "team_changed").order_by(EventLog.id).all():
+            data = e.data or {}
+            if data.get("to") == "VALIDEE" and data.get("team") in validated:
+                last_event[data["team"]] = e.id
+        return sorted(validated, key=lambda tid: (last_event.get(tid, 0), rows[tid].updated_at or self.clock()))
+
     def teams_view(self, s: Session) -> list[dict]:
         rows = {r.team_id: r for r in s.query(TeamProgress).all()}
-        return [{"id": t.id, "name": t.name, "theme": t.theme, "color": t.color, "enigma": t.enigma,
-                 "description": t.description, "status": rows[t.id].status,
-                 "updated_at": iso(rows[t.id].updated_at)} for t in self.cfg.teams]
+        order = self._validation_order(s, rows)
+        views = []
+        for t in self.cfg.teams:
+            rank = order.index(t.id) + 1 if t.id in order else None
+            points = TEAM_POINTS[min(rank, len(TEAM_POINTS)) - 1] if rank else 0
+            views.append({"id": t.id, "name": t.name, "theme": t.theme, "color": t.color, "enigma": t.enigma,
+                          "description": t.description, "status": rows[t.id].status,
+                          "updated_at": iso(rows[t.id].updated_at), "code_word": t.code_word or None,
+                          "rank": rank, "points": points})
+        return views

@@ -88,8 +88,23 @@ export function ProgressOverlay({ state, highlight }: { state: PublicState; high
               <span className="h-[2.4vw] w-[0.45vw] shrink-0 rounded-full" style={{ background: t.color }} />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-[1.2vw] font-bold leading-tight">{t.theme}</span>
-                <span className="block truncate text-[0.85vw] text-parchemin-200/60">{t.name}</span>
+                <span className="flex items-baseline gap-[0.5vw] truncate text-[0.85vw] text-parchemin-200/60">
+                  <span className="truncate">{t.name}</span>
+                  {t.status === "VALIDEE" && t.code_word && (
+                    <span
+                      data-testid={`tv-code-word-${t.id}`}
+                      className="animate-pop shrink-0 rounded-[0.35vw] bg-or-500/90 px-[0.45vw] font-display text-[1vw] font-extrabold tracking-[0.12em] text-bois-950"
+                    >
+                      {t.code_word}
+                    </span>
+                  )}
+                </span>
               </span>
+              {t.points > 0 && (
+                <span data-testid={`tv-points-${t.id}`} className="shrink-0 font-display text-[1.15vw] font-extrabold text-or-300">
+                  +{t.points}
+                </span>
+              )}
               <TeamStatusBadge status={t.status} />
             </li>
           );
@@ -169,7 +184,20 @@ export function SuccessCelebration({ success }: { success: Success }) {
         >
           {success.name} — {success.theme}
         </p>
-      ) : (
+      ) : null}
+      {isTeam && (success.codeWord || success.points > 0) && (
+        <div className="animate-pop mt-[2vw] flex items-center gap-[2vw]" style={{ animationDelay: "0.8s", animationFillMode: "both" }}>
+          {success.codeWord && (
+            <span className="rounded-[1vw] border-[0.25vw] border-or-400 bg-bois-950/80 px-[2.5vw] py-[0.6vw] font-display text-[4vw] font-extrabold tracking-[0.2em] text-or-300 shadow-[0_0_3vw_rgba(255,215,106,0.6)]">
+              {success.codeWord}
+            </span>
+          )}
+          {success.points > 0 && (
+            <span className="font-display text-[3.4vw] font-extrabold text-white drop-shadow-xl">+{success.points} points</span>
+          )}
+        </div>
+      )}
+      {isTeam ? null : (
         <p
           className="animate-unroll mt-[2vw] flex items-center gap-[1.2vw] rounded-full bg-sapin-700 px-[3vw] py-[1vw] font-display text-[2.6vw] font-bold text-white shadow-2xl ring-[0.25vw] ring-or-400"
           style={{ animationDelay: "0.3s" }}

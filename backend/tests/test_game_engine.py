@@ -109,6 +109,32 @@ def test_team_invalidation(admin):
     assert teams["bleue"] == "EN_COURS"
 
 
+def test_team_points_follow_validation_order(admin):
+    for team in ("bleue", "rouge", "or"):
+        admin.post("/api/admin/teams/" + team, json={"status": "VALIDEE"})
+    teams = {t["id"]: t for t in admin.get("/api/admin/state").json()["teams"]}
+    assert [(teams[t]["rank"], teams[t]["points"]) for t in ("bleue", "rouge", "or", "verte")] == [
+        (1, 5), (2, 4), (3, 3), (None, 0)]
+    # une équipe invalidée perd sa place ; revalidée, elle passe derrière les autres
+    admin.post("/api/admin/teams/bleue", json={"status": "EN_COURS"})
+    admin.post("/api/admin/teams/verte", json={"status": "VALIDEE"})
+    admin.post("/api/admin/teams/bleue", json={"status": "VALIDEE"})
+    teams = {t["id"]: t for t in admin.get("/api/admin/state").json()["teams"]}
+    assert [teams[t]["points"] for t in ("rouge", "or", "verte", "bleue")] == [5, 4, 3, 2]
+
+
+def test_code_word_revealed_only_when_validated(admin, client):
+    admin_teams = {t["id"]: t for t in admin.get("/api/admin/state").json()["teams"]}
+    assert {t: admin_teams[t]["code_word"] for t in admin_teams} == {
+        "rouge": "SOUS", "verte": "CANAPE", "bleue": "COFFRE", "or": "MAIL"}
+    public = {t["id"]: t for t in client.get("/api/public/state").json()["teams"]}
+    assert all(t["code_word"] is None for t in public.values())
+    admin.post("/api/admin/teams/verte", json={"status": "VALIDEE"})
+    public = {t["id"]: t for t in client.get("/api/public/state").json()["teams"]}
+    assert public["verte"]["code_word"] == "CANAPE" and public["verte"]["points"] == 5
+    assert public["rouge"]["code_word"] is None
+
+
 def test_team_validation_errors(admin):
     assert admin.post("/api/admin/teams/violette", json={"status": "EN_COURS"}).status_code == 404
     assert admin.post("/api/admin/teams/rouge", json={"status": "GAGNEE"}).status_code == 422
