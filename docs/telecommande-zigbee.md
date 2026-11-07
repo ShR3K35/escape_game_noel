@@ -27,6 +27,14 @@ Fichier `config/telecommande.yaml` (commenté). Règles :
 - après `reset_seconds` sans appui la saisie est effacée ; `wrong_action` (facultatif) est alors déclenchée
   si la saisie était au moins aussi longue que la plus courte combinaison.
 
+## Bouton d'urgence
+
+Le bouton IKEA TRADFRI E1812 (friendly_name `urgence`) est déclaré dans la section `buttons` de
+`config/telecommande.yaml` : un appui court (`action: on`) appelle l'**action 5**, exactement comme le boîtier
+Matter. Le backend applique les règles du protocole d'urgence : sans autorisation du MJ, message de patience sur
+la TV ; avec autorisation, vidéo du secours des lutins (sans la relancer si elle passe déjà). Les appuis
+répétés dans les `cooldown_seconds` (3 s) qui suivent sont ignorés.
+
 Après modification : `docker compose -f compose.prod.yml restart telecommande`.
 
 ## Installation sur le Pi

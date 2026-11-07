@@ -22,3 +22,15 @@ telecommande:
     - name: code secret
       buttons: [1, 3, 3, 2, 4]
       action: 6
+
+  # Boutons simples : chaque appui déclenche directement l'action (pas de combinaison).
+  # Mêmes règles que le boîtier Matter : l'action 5 n'agit que si le MJ a autorisé le protocole d'urgence,
+  # sinon la TV affiche le message de patience.
+  buttons:
+    # IKEA TRADFRI E1812 (friendly_name « urgence » dans Zigbee2MQTT). Appui court = « on »
+    # (« off » = double appui, « brightness_move_up » = appui long : ignorés).
+    - device: urgence
+      actions: ["on"]  # guillemets obligatoires : on sans guillemets = true en YAML
+      action: 5
+      # Appuis ignorés pendant ce délai après un déclenchement (secondes).
+      cooldown_seconds: 3

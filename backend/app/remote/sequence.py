@@ -37,6 +37,23 @@ class SequenceConfig(BaseModel):
         return v
 
 
+class ButtonConfig(BaseModel):
+    """Bouton simple (ex. IKEA TRADFRI E1812) : un appui déclenche directement une action, sans combinaison."""
+    device: str = Field(min_length=1)  # friendly_name dans Zigbee2MQTT
+    actions: list[str] = Field(default_factory=lambda: ["on"], min_length=1)  # valeurs « action » qui comptent
+    action: int = Field(ge=ACTION_MIN, le=ACTION_MAX)
+    # Appuis ignorés pendant ce délai après un déclenchement (évite de rejouer l'action en martelant le bouton).
+    cooldown_seconds: float = Field(default=3.0, ge=0, le=60)
+
+    @field_validator("actions", mode="before")
+    @classmethod
+    def _yaml_booleans(cls, v: object) -> object:
+        # YAML 1.1 lit on/off sans guillemets comme des booléens.
+        if isinstance(v, list):
+            return [("on" if a else "off") if isinstance(a, bool) else a for a in v]
+        return v
+
+
 class RemoteConfig(BaseModel):
     # Nom de l'appareil dans Zigbee2MQTT (friendly_name), ou « * » pour accepter n'importe quelle télécommande.
     device: str = Field(default="telecommande", min_length=1)
@@ -45,9 +62,15 @@ class RemoteConfig(BaseModel):
     hold_resets: bool = True
     wrong_action: int | None = Field(default=None, ge=ACTION_MIN, le=ACTION_MAX)
     sequences: list[SequenceConfig] = Field(min_length=1)
+    buttons: list[ButtonConfig] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _check_unique(self) -> "RemoteConfig":
+        devices = [b.device for b in self.buttons]
+        if len(set(devices)) != len(devices):
+            raise ValueError("un même bouton est déclaré plusieurs fois dans « buttons »")
+        if self.device in devices:
+            raise ValueError(f"« {self.device} » est à la fois la télécommande et un bouton simple")
         seen: dict[tuple[int, ...], str] = {}
         for seq in self.sequences:
             key = tuple(seq.buttons)
@@ -60,7 +83,7 @@ class RemoteConfig(BaseModel):
 @dataclass(frozen=True)
 class Trigger:
     action: int
-    kind: str  # "success" | "wrong"
+    kind: str  # "success" | "wrong" | "button" (bouton simple)
     name: str
     presses: tuple[int, ...]
 

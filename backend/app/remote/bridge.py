@@ -1,5 +1,7 @@
 """Pont télécommande Zigbee -> backend : écoute Zigbee2MQTT, reconnaît les combinaisons et déclenche les actions.
 
+Les boutons simples (section « buttons », ex. le bouton « urgence ») déclenchent leur action à chaque appui.
+
 Lancement (conteneur « telecommande » de compose.prod.yml) :  python -m app.remote.bridge
 
 Variables d'environnement :
@@ -25,7 +27,7 @@ from pathlib import Path
 import paho.mqtt.client as mqtt
 import yaml
 
-from app.remote.sequence import RemoteConfig, SequenceDetector, Trigger, parse_action
+from app.remote.sequence import ButtonConfig, RemoteConfig, SequenceDetector, Trigger, parse_action
 
 log = logging.getLogger("telecommande")
 
@@ -44,12 +46,20 @@ def device_from_topic(topic: str, base: str) -> str | None:
     return None if not name or "/" in name or name == "bridge" else name
 
 
-def extract_press(payload: bytes) -> tuple[int, str] | None:
+def extract_action(payload: bytes) -> object:
+    """Valeur « action » d'un message Zigbee2MQTT (None pour batterie, last_seen, JSON invalide…)."""
     try:
         data = json.loads(payload)
     except (ValueError, UnicodeDecodeError):
         return None
-    return parse_action(data.get("action")) if isinstance(data, dict) else None
+    return data.get("action") if isinstance(data, dict) else None
+
+def extract_press(payload: bytes) -> tuple[int, str] | None:
+    return parse_action(extract_action(payload))
+
+def subscriptions(config: RemoteConfig, base: str) -> list[str]:
+    remote = f"{base}/{'+' if config.device == '*' else config.device}"
+    return [remote] + [f"{base}/{b.device}" for b in config.buttons if config.device != "*"]
 
 
 class ApiClient:
@@ -59,9 +69,9 @@ class ApiClient:
         self.device = device
         self.timeout = timeout
 
-    def trigger(self, number: int, attempts: int = 3) -> dict | None:
+    def trigger(self, number: int, device: str | None = None, attempts: int = 3) -> dict | None:
         """Même Idempotency-Key à chaque tentative : un réessai réseau ne rejoue pas l'action."""
-        body = json.dumps({"source": "bouton", "device": self.device}).encode()
+        body = json.dumps({"source": "bouton", "device": device or self.device}).encode()
         headers = {"Content-Type": "application/json", "Idempotency-Key": uuid.uuid4().hex}
         if self.token:
             headers["X-Device-Token"] = self.token
@@ -86,32 +96,59 @@ class Bridge:
         self.api = api
         self.base_topic = base_topic
         self.detector = SequenceDetector(config)
-        self.presses: queue.Queue[tuple[int, str]] = queue.Queue()
+        self.buttons = {b.device: b for b in config.buttons}
+        self.last_fired: dict[str, float] = {}
+        # Appui télécommande (bouton, type) ou bouton simple (ButtonConfig).
+        self.presses: queue.Queue[tuple[int, str] | ButtonConfig] = queue.Queue()
 
     def on_message(self, topic: str, payload: bytes) -> None:
         """Appelé par le fil MQTT : on se contente de mettre l'appui en file."""
         device = device_from_topic(topic, self.base_topic)
-        if device is None or (self.config.device != "*" and device != self.config.device):
+        if device is None:
+            return
+        button = self.buttons.get(device)
+        if button is not None:
+            if extract_action(payload) in button.actions:
+                self.presses.put(button)
+            return
+        if self.config.device != "*" and device != self.config.device:
             return
         press = extract_press(payload)
         if press:
             self.presses.put(press)
 
     def step(self, timeout: float = 0.2) -> list[Trigger]:
+        now = time.monotonic()
         try:
-            button, kind = self.presses.get(timeout=timeout)
+            item = self.presses.get(timeout=timeout)
         except queue.Empty:
-            triggers = self.detector.tick(time.monotonic())
+            triggers = self.detector.tick(now)
         else:
-            triggers = self.detector.handle(button, kind, time.monotonic())
+            if isinstance(item, ButtonConfig):
+                return self._press_button(item, now)
+            button, kind = item
+            triggers = self.detector.handle(button, kind, now)
             log.info("appui %s_%s -> saisie %s", button, kind, self.detector.presses)
         for t in triggers:
             label = f"combinaison « {t.name} »" if t.kind == "success" else "combinaison ratée"
             log.info("%s %s -> action %s", label, list(t.presses), t.action)
-            result = self.api.trigger(t.action)
-            if result is not None:
-                log.info("réponse du backend : %s", result)
+            self._call(t.action)
         return triggers
+
+    def _press_button(self, button: ButtonConfig, now: float) -> list[Trigger]:
+        last = self.last_fired.get(button.device)
+        if last is not None and now - last < button.cooldown_seconds:
+            log.info("bouton « %s » : appui ignoré (déclenché il y a %.1f s)", button.device, now - last)
+            return []
+        self.last_fired[button.device] = now
+        log.info("bouton « %s » -> action %s", button.device, button.action)
+        self._call(button.action, button.device)
+        return [Trigger(button.action, "button", button.device, ())]
+
+    def _call(self, action: int, device: str | None = None) -> None:
+        result = self.api.trigger(action, device) if device else self.api.trigger(action)
+        if result is not None:
+            log.info("réponse du backend : %s", result)
 
 
 def main() -> None:
@@ -121,16 +158,18 @@ def main() -> None:
     api = ApiClient(os.environ.get("API_URL", "http://app:8080"), os.environ.get("DEVICE_TOKEN", ""))
     bridge = Bridge(config, api, base_topic)
     log.info("combinaisons : %s", {s.name: s.buttons for s in config.sequences})
+    if config.buttons:
+        log.info("boutons simples : %s", {b.device: b.action for b in config.buttons})
 
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="noel2026-telecommande")
-    topic = f"{base_topic}/{'+' if config.device == '*' else config.device}"
+    topics = subscriptions(config, base_topic)
 
     def on_connect(c, _userdata, _flags, reason_code, _props):
         if reason_code.is_failure:
             log.error("connexion MQTT refusée : %s", reason_code)
             return
-        c.subscribe(topic)
-        log.info("abonné à %s", topic)
+        c.subscribe([(t, 0) for t in topics])
+        log.info("abonné à %s", ", ".join(topics))
 
     client.on_connect = on_connect
     client.on_message = lambda _c, _u, msg: bridge.on_message(msg.topic, msg.payload)

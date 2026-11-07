@@ -7,7 +7,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.core.config import REPO_ROOT
-from app.remote.bridge import Bridge, device_from_topic, extract_press, load_config
+from app.remote.bridge import Bridge, device_from_topic, extract_press, load_config, subscriptions
 from app.remote.sequence import RemoteConfig, SequenceDetector, parse_action
 
 
@@ -112,6 +112,58 @@ def test_invalid_configs_are_rejected(bad):
 def test_shipped_config_is_valid():
     cfg = load_config(Path(REPO_ROOT) / "config" / "telecommande.yaml")
     assert cfg.device == "telecommande" and cfg.sequences
+    assert [(b.device, b.action) for b in cfg.buttons] == [("urgence", 5)]
+    assert subscriptions(cfg, "zigbee2mqtt") == ["zigbee2mqtt/telecommande", "zigbee2mqtt/urgence"]
+
+
+def test_simple_button_triggers_its_action_with_cooldown(monkeypatch):
+    cfg = RemoteConfig.model_validate({
+        "sequences": [{"name": "code", "buttons": [1, 2], "action": 6}],
+        "buttons": [{"device": "urgence", "action": 5, "cooldown_seconds": 3}],
+    })
+    api = FakeApi()
+    bridge = Bridge(cfg, api)
+    clock = iter([0.0, 1.0, 5.0, 5.5])
+    monkeypatch.setattr("app.remote.bridge.time.monotonic", lambda: next(clock))
+    msg = lambda a: json.dumps({"action": a}).encode()  # noqa: E731
+    bridge.on_message("zigbee2mqtt/urgence", msg("on"))
+    bridge.on_message("zigbee2mqtt/urgence", msg("on"))       # trop tôt : ignoré
+    bridge.on_message("zigbee2mqtt/urgence", b'{"battery": 80}')
+    bridge.on_message("zigbee2mqtt/urgence", msg("brightness_move_up"))
+    bridge.on_message("zigbee2mqtt/urgence", msg("on"))       # après le délai
+    bridge.on_message("zigbee2mqtt/urgence", msg("1_single"))  # pas une touche de télécommande
+    for _ in range(3):
+        bridge.step(timeout=0)
+    assert api.calls == [(5, "urgence"), (5, "urgence")]
+    assert bridge.detector.presses == []
+
+
+@pytest.mark.parametrize("buttons", [
+    [{"device": "urgence", "action": 5}, {"device": "urgence", "action": 6}],
+    [{"device": "telecommande", "action": 5}],
+    [{"device": "urgence", "action": 11}],
+])
+def test_invalid_buttons_are_rejected(buttons):
+    with pytest.raises(ValidationError):
+        RemoteConfig.model_validate({"sequences": [{"name": "x", "buttons": [1, 2], "action": 6}],
+                                     "buttons": buttons})
+
+
+def test_emergency_button_end_to_end_with_backend(client):
+    """Bouton « urgence » -> vraie route /api/devices/actions/5 : refus tant que le MJ n'a pas autorisé."""
+    class TestClientApi:
+        def trigger(self, number, device=None):
+            r = client.post(f"/api/devices/actions/{number}", json={"source": "bouton", "device": device},
+                            headers={"Idempotency-Key": "urgence-test-01"})
+            assert r.status_code == 200
+            return r.json()
+
+    cfg = RemoteConfig.model_validate({"sequences": [{"name": "x", "buttons": [1, 2], "action": 6}],
+                                       "buttons": [{"device": "urgence", "action": 5}]})
+    bridge = Bridge(cfg, TestClientApi())
+    bridge.on_message("zigbee2mqtt/urgence", b'{"action": "on"}')
+    [t] = bridge.step(timeout=0)
+    assert (t.action, t.kind) == (5, "button")
 
 
 def test_topic_and_payload_parsing():
@@ -129,8 +181,8 @@ class FakeApi:
     def __init__(self):
         self.calls = []
 
-    def trigger(self, number):
-        self.calls.append(number)
+    def trigger(self, number, device=None):
+        self.calls.append(number if device is None else (number, device))
         return {"action": number}
 
 
