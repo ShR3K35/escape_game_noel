@@ -26,6 +26,38 @@ function TeamStatusBadge({ status }: { status: TeamStatus }) {
   return <span className="h-[0.6vw] w-[1.6vw] rounded-full bg-white/15" aria-label="non commencée" />;
 }
 
+/** Protocole d'urgence des lutins : verrouillé (cadenas) ou autorisé (cadenas ouvert, pulsation). */
+function EmergencyIndicator({ authorized }: { authorized: boolean }) {
+  return (
+    <div
+      data-testid="tv-emergency"
+      data-authorized={authorized}
+      className={`mt-[1vw] flex items-center gap-[0.8vw] rounded-[0.7vw] border py-[0.5vw] pl-[0.6vw] pr-[0.8vw] transition ${
+        authorized
+          ? "animate-glow border-red-400/80 bg-red-600/30 shadow-[0_0_1.2vw_rgba(248,113,113,0.55)]"
+          : "border-white/10 bg-black/30"
+      }`}
+    >
+      <svg viewBox="0 0 24 24" className={`h-[2vw] w-[2vw] shrink-0 ${authorized ? "text-red-300" : "text-parchemin-200/50"}`} aria-hidden>
+        <rect x="4.5" y="10.5" width="15" height="10.5" rx="2" fill="currentColor" />
+        <path
+          d={authorized ? "M8 10.5V7a4 4 0 0 1 7.6-1.7" : "M8 10.5V7a4 4 0 0 1 8 0v3.5"}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.2"
+          strokeLinecap="round"
+        />
+      </svg>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[1.05vw] font-bold leading-tight">Protocole d'urgence</span>
+        <span className={`block truncate text-[0.85vw] ${authorized ? "font-bold text-red-200" : "text-parchemin-200/60"}`}>
+          {authorized ? "Autorisé" : "Verrouillé"}
+        </span>
+      </span>
+    </div>
+  );
+}
+
 /** Panneau d'avancement affiché par-dessus la boucle du bureau (lecture seule). */
 export function ProgressOverlay({ state, highlight }: { state: PublicState; highlight?: Success }) {
   const validated = state.teams.filter((t) => t.status === "VALIDEE").length;
@@ -94,6 +126,7 @@ export function ProgressOverlay({ state, highlight }: { state: PublicState; high
           })}
         </ol>
       </div>
+      <EmergencyIndicator authorized={state.emergency_authorized} />
     </aside>
   );
 }

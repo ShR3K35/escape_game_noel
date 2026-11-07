@@ -83,7 +83,8 @@ class Services:
                 "teams": [{k: t[k] for k in ("id", "name", "theme", "color", "status")}
                           for t in self.game.teams_view(s)],
                 "kids_summary": {"completed": kids["completed_count"], "total": kids["total"]},
-                "kids_games": [{"id": g["id"], "title": g["title"], "status": g["status"]} for g in kids["games"]]}
+                "kids_games": [{"id": g["id"], "title": g["title"], "status": g["status"]} for g in kids["games"]],
+                "emergency_authorized": bool(st.emergency_authorized)}
 
     def kids_view(self, s: Session) -> dict:
         return {"server_time": iso(self.clock()), "phase": self.game.state(s).phase, **self.kids.view(s)}
@@ -103,7 +104,6 @@ class Services:
             "messages": [m.model_dump() for m in self.cfg.messages],
             "ambients": list(AMBIENTS),
             "events": self.events(s, 40),
-            "emergency_authorized": bool(self.game.state(s).emergency_authorized),
             "time_scale": self.time_scale,
             "demo_mode": self.settings.demo_mode,
             "game": self.cfg.game.model_dump(),

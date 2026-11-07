@@ -13,6 +13,7 @@ def to_enquete(admin):
 def test_locked_by_default_shows_patience_message(admin):
     to_enquete(admin)
     assert admin.get("/api/admin/state").json()["emergency_authorized"] is False
+    assert admin.get("/api/public/state").json()["emergency_authorized"] is False
     r = admin.post("/api/devices/actions/5")
     assert r.status_code == 200
     assert r.json() == {"action": 5, "defined": True, "changed": True, "effect": "emergency_refused"}
@@ -27,6 +28,7 @@ def test_authorized_starts_secours_video(admin, svc):
     r = admin.post("/api/admin/game/emergency", json={"authorized": True})
     assert r.json() == {"changed": True, "authorized": True}
     assert admin.get("/api/admin/state").json()["emergency_authorized"] is True
+    assert admin.get("/api/public/state").json()["emergency_authorized"] is True  # indicateur de la TV
     r = admin.post("/api/devices/actions/5").json()
     assert r["effect"] == "emergency_started" and r["phase"] == "SECOURS"
     state = admin.get("/api/admin/state").json()

@@ -19,6 +19,7 @@ function state(teams: Record<string, PublicState["teams"][number]["status"]>, ki
     teams: Object.entries(teams).map(([id, status]) => ({ id, name: `Équipe ${id}`, theme: `Thème ${id}`, color: "#900", status })),
     kids_summary: { completed: kids.filter((k) => k === "completed").length, total: 4 },
     kids_games: ids.map((id, i) => ({ id, title: `Jeu ${id}`, status: kids[i] })),
+    emergency_authorized: false,
   };
 }
 
@@ -62,6 +63,16 @@ describe("affichage", () => {
     expect(panel).toHaveTextContent("1/4");
     expect(panel.querySelector('[data-team="rouge"]')).toHaveAttribute("data-status", "VALIDEE");
     expect(panel.querySelector('[data-kids-game="machine"]')).toHaveAttribute("data-status", "available");
+  });
+
+  it("indicateur du protocole d'urgence", () => {
+    const base = state({ rouge: "EN_COURS" }, KIDS0);
+    const { rerender } = render(<ProgressOverlay state={base} />);
+    expect(screen.getByTestId("tv-emergency")).toHaveAttribute("data-authorized", "false");
+    expect(screen.getByTestId("tv-emergency")).toHaveTextContent("Verrouillé");
+    rerender(<ProgressOverlay state={{ ...base, emergency_authorized: true }} />);
+    expect(screen.getByTestId("tv-emergency")).toHaveAttribute("data-authorized", "true");
+    expect(screen.getByTestId("tv-emergency")).toHaveTextContent("Autorisé");
   });
 
   it("animation équipe et animation lutins", () => {
