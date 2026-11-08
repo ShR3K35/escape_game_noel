@@ -1,11 +1,15 @@
-// Escape de Noël — boîtier Matter ESP32 DevKit V1 : 10 boutons virtuels + 5 lampes RGB virtuelles.
-// Aucun câblage : tout se passe dans l'application domotique (Smart Life, Google Home...).
+// Escape de Noël — boîtier Matter ESP32 DevKit V1 : 10 boutons virtuels + 5 lampes RGB virtuelles,
+// plus 3 capteurs de porte magnétiques (seul câblage). Le reste se passe dans l'application domotique.
 //
 // Endpoints Matter (dans cet ordre, l'application les nomme dans l'ordre de création) :
 //   1-10  « Action 1..10 »  prise On/Off momentanée : l'allumer depuis l'application appelle
 //                           POST {SERVER_BASE_URL}/api/devices/actions/N puis elle se rééteint.
 //   11-15 « Lampe 1..5 »    lampe couleur virtuelle (on/off + couleur), sans LED physique :
 //                           son état est seulement mémorisé par Matter et affiché sur le port série.
+//
+// Capteurs de porte (seul câblage) : 3 contacts magnétiques NO entre GND et les GPIO de DOOR_PINS.
+// Les fermer dans l'ordre DOOR_SEQUENCE déclenche l'action DOOR_SEQUENCE_ACTION (3 = mission de
+// l'équipe Bleue « Les Témoins »), exactement comme un appui sur « Action 3 » dans l'application.
 //
 // Carte « ESP32 Dev Module », Partition Scheme « Huge APP (3MB No OTA/1MB SPIFFS) ».
 // Voir firmware/esp32-matter/README.md.
@@ -28,6 +32,29 @@
 // 10 + 5 laisse ~66 Ko libres, la marge nécessaire à l'appairage. Modifiable dans config.h.
 #ifndef LAMP_COUNT
 #define LAMP_COUNT 5
+#endif
+// Capteurs de porte : GPIO avec pull-up interne (éviter 0, 2, 12, 15 de démarrage et 34-39 sans pull-up).
+#ifndef DOOR_PINS
+#define DOOR_PINS {32, 33, 25}
+#endif
+// Ordre de fermeture attendu (numéros de capteur 1..N, dans l'ordre de DOOR_PINS).
+#ifndef DOOR_SEQUENCE
+#define DOOR_SEQUENCE {1, 2, 3}
+#endif
+// Action envoyée au serveur quand la séquence est réussie (3 = valider l'équipe Bleue « Les Témoins »).
+#ifndef DOOR_SEQUENCE_ACTION
+#define DOOR_SEQUENCE_ACTION 3
+#endif
+// Délai max entre deux fermetures de la séquence (ms) ; 0 = pas de limite.
+#ifndef DOOR_SEQUENCE_TIMEOUT_MS
+#define DOOR_SEQUENCE_TIMEOUT_MS 0
+#endif
+// NO (contact fermé quand l'aimant est présent) : porte fermée = LOW. Mettre 0 si câblé sur NC.
+#ifndef DOOR_CLOSED_IS_LOW
+#define DOOR_CLOSED_IS_LOW 1
+#endif
+#ifndef DOOR_DEBOUNCE_MS
+#define DOOR_DEBOUNCE_MS 50
 #endif
 constexpr uint8_t COUNT = ACTION_COUNT;
 constexpr uint8_t RESET_BUTTON_PIN = 0;  // bouton BOOT de la carte
@@ -98,6 +125,84 @@ void sendAction(uint8_t index) {
   }
 }
 
+// --- Capteurs de porte ------------------------------------------------------------------
+constexpr uint8_t DOOR_PIN_LIST[] = DOOR_PINS;
+constexpr uint8_t DOOR_COUNT = sizeof(DOOR_PIN_LIST);
+constexpr uint8_t DOOR_SEQ[] = DOOR_SEQUENCE;
+constexpr uint8_t DOOR_SEQ_LEN = sizeof(DOOR_SEQ);
+static_assert(DOOR_SEQUENCE_ACTION >= 1 && DOOR_SEQUENCE_ACTION <= ACTION_COUNT, "DOOR_SEQUENCE_ACTION hors limites");
+
+bool doorClosed[DOOR_COUNT];      // état stable (anti-rebond appliqué)
+bool doorRaw[DOOR_COUNT];         // dernière lecture brute
+uint32_t doorRawSince[DOOR_COUNT];
+uint8_t seqProgress = 0;          // nombre de fermetures correctes enchaînées
+uint32_t seqLastStepAt = 0;
+
+bool readDoorClosed(uint8_t d) {
+  bool low = digitalRead(DOOR_PIN_LIST[d]) == LOW;
+  return DOOR_CLOSED_IS_LOW ? low : !low;
+}
+
+void resetSequence(const char *why) {
+  if (seqProgress > 0) Serial.printf("[portes] séquence remise à zéro (%s)\n", why);
+  seqProgress = 0;
+}
+
+void onDoorChange(uint8_t d, bool closed) {
+  uint8_t sensor = d + 1;
+  Serial.printf("[porte %u] %s\n", sensor, closed ? "fermée" : "ouverte");
+  if (!closed) {
+    // Rouvrir une porte déjà comptée annule la séquence : il faut finir avec les portes fermées.
+    for (uint8_t k = 0; k < seqProgress; k++) {
+      if (DOOR_SEQ[k] == sensor) { resetSequence("porte rouverte"); break; }
+    }
+    return;
+  }
+  if (DOOR_SEQUENCE_TIMEOUT_MS > 0 && seqProgress > 0 && millis() - seqLastStepAt > DOOR_SEQUENCE_TIMEOUT_MS) {
+    resetSequence("trop lent");
+  }
+  if (sensor == DOOR_SEQ[seqProgress]) {
+    seqProgress++;
+  } else {
+    resetSequence("mauvais ordre");
+    if (sensor == DOOR_SEQ[0]) seqProgress = 1;  // cette fermeture peut commencer une nouvelle séquence
+  }
+  seqLastStepAt = millis();
+  Serial.printf("[portes] séquence %u/%u\n", seqProgress, DOOR_SEQ_LEN);
+  if (seqProgress == DOOR_SEQ_LEN) {
+    Serial.printf("[portes] séquence réussie -> action %u\n", DOOR_SEQUENCE_ACTION);
+    seqProgress = 0;
+    uint8_t index = DOOR_SEQUENCE_ACTION - 1;
+    if (xQueueSend(actionQueue, &index, 0) != pdTRUE) Serial.println("[portes] file pleine, action perdue");
+  }
+}
+
+void setupDoors() {
+  for (uint8_t d = 0; d < DOOR_COUNT; d++) {
+    pinMode(DOOR_PIN_LIST[d], INPUT_PULLUP);
+  }
+  delay(20);
+  for (uint8_t d = 0; d < DOOR_COUNT; d++) {
+    doorClosed[d] = doorRaw[d] = readDoorClosed(d);  // état initial : aucun événement
+    doorRawSince[d] = millis();
+    Serial.printf("[porte %u] GPIO %u, %s\n", d + 1, DOOR_PIN_LIST[d], doorClosed[d] ? "fermée" : "ouverte");
+  }
+}
+
+void pollDoors() {
+  uint32_t now = millis();
+  for (uint8_t d = 0; d < DOOR_COUNT; d++) {
+    bool raw = readDoorClosed(d);
+    if (raw != doorRaw[d]) {
+      doorRaw[d] = raw;
+      doorRawSince[d] = now;
+    } else if (raw != doorClosed[d] && now - doorRawSince[d] >= DOOR_DEBOUNCE_MS) {
+      doorClosed[d] = raw;
+      onDoorChange(d, raw);
+    }
+  }
+}
+
 // --- Boucle ------------------------------------------------------------------------
 void releaseActions() {
   uint32_t now = millis();
@@ -147,6 +252,7 @@ void setup() {
   pinMode(STATUS_LED_PIN, OUTPUT);
   pinMode(RESET_BUTTON_PIN, INPUT_PULLUP);
   actionQueue = xQueueCreate(16, sizeof(uint8_t));
+  setupDoors();
 
 #if !CONFIG_ENABLE_CHIPOBLE
   // Sans BLE, le Wi-Fi doit être connu à l'avance.
@@ -186,6 +292,7 @@ void loop() {
   wasCommissioned = commissioned;
 
   releaseActions();
+  pollDoors();
   handleFactoryReset();
   updateStatusLed();
 

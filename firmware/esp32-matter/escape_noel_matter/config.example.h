@@ -26,3 +26,16 @@
 // raisonnable (une lampe couleur consomme ~11,5 Ko de RAM, 10 + 10 plante au démarrage).
 #define ACTION_COUNT 10
 #define LAMP_COUNT 5
+
+// --- Capteurs de porte (contacts magnétiques) ---------------------------------
+// Chaque capteur : fil COM sur GND, fil NO sur le GPIO (pull-up interne, aucune résistance).
+// Capteur 1, 2, 3 = GPIO 32, 33, 25 (éviter 0, 2, 12, 15 et 34-39).
+#define DOOR_PINS {32, 33, 25}
+// Ordre de fermeture qui réussit l'énigme (numéros de capteur).
+#define DOOR_SEQUENCE {1, 2, 3}
+// Action déclenchée : 3 = valider la mission de l'équipe Bleue « Les Témoins ».
+#define DOOR_SEQUENCE_ACTION 3
+// Délai max entre deux fermetures (ms), 0 = illimité.
+#define DOOR_SEQUENCE_TIMEOUT_MS 0
+// 1 si câblé sur NO (porte fermée = contact fermé = LOW), 0 si câblé sur NC.
+#define DOOR_CLOSED_IS_LOW 1

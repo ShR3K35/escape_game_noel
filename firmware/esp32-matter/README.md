@@ -1,7 +1,7 @@
-# Boîtier Matter ESP32 : 10 boutons + 5 lampes RGB virtuels
+# Boîtier Matter ESP32 : 10 boutons + 5 lampes RGB virtuels + 3 capteurs de porte
 
-Un ESP32 DevKit V1 (ESP32-WROOM-32) exposé en **Matter over Wi-Fi**, **sans aucun câblage** : les boutons et les
-lampes n'existent que dans l'application domotique.
+Un ESP32 DevKit V1 (ESP32-WROOM-32) exposé en **Matter over Wi-Fi** : les boutons et les lampes n'existent que dans
+l'application domotique. Le seul câblage concerne les 3 capteurs de porte (voir plus bas).
 
 | Endpoints | Dans l'application (Smart Life, Google Home, Apple Maison, Home Assistant…) | Effet |
 |---|---|---|
@@ -12,6 +12,41 @@ lampes n'existent que dans l'application domotique.
  Smart Life ──Matter (Wi-Fi)──▶ ESP32 ──HTTP POST /api/devices/actions/N──▶ Raspberry Pi (FastAPI)
                                           X-Device-Token + Idempotency-Key
 ```
+
+## Capteurs de porte : énigme de l'équipe Bleue « Les Témoins »
+
+Trois contacts magnétiques (NO/NC) sont branchés sur la carte. Quand les trois portes sont **fermées dans le bon
+ordre**, l'ESP32 envoie lui-même `POST /api/devices/actions/3`, ce qui **valide la mission de l'équipe Bleue**.
+Le résultat est le même qu'un appui sur « Action 3 » dans l'application. Les capteurs fonctionnent même si le boîtier
+n'est pas appairé en Matter : seul le Wi-Fi est nécessaire.
+
+| Capteur | GPIO (DevKit V1) | Câblage |
+|---|---|---|
+| 1 | D32 | COM → GND, NO → D32 |
+| 2 | D33 | COM → GND, NO → D33 |
+| 3 | D25 | COM → GND, NO → D25 |
+
+Aucune résistance n'est nécessaire, la pull-up interne est activée. Avec un aimant contre le capteur (porte fermée),
+le contact NO se ferme et le GPIO passe à LOW. Pour un câblage sur NC, mettre `DOOR_CLOSED_IS_LOW 0`.
+
+Règles de la séquence (ordre par défaut 1 → 2 → 3, réglable avec `DOOR_SEQUENCE`) :
+
+- Seule une **fermeture** (passage ouvert → fermé, anti-rebond 50 ms) compte comme une étape. L'état des portes
+  au démarrage n'est pas compté.
+- Fermer une porte qui n'est pas la suivante attendue remet la séquence à zéro. Si cette porte est la première
+  de la séquence, elle compte comme nouveau départ.
+- Rouvrir une porte déjà comptée remet aussi la séquence à zéro : il faut finir avec les trois portes fermées.
+- `DOOR_SEQUENCE_TIMEOUT_MS` limite en option le délai entre deux fermetures (0 = illimité).
+- Une fois la séquence réussie, elle repart de zéro. Si l'équipe est déjà validée, le serveur ne fait rien
+  (`"changed": false`).
+
+Le moniteur série affiche chaque ouverture et fermeture (`[porte 2] fermée`, `[portes] séquence 2/3`…), ce qui
+permet de tester le câblage.
+
+Les capteurs se règlent dans `config.h` (`DOOR_PINS`, `DOOR_SEQUENCE`, `DOOR_SEQUENCE_ACTION`…). Sans ces lignes,
+les valeurs par défaut ci-dessus s'appliquent.
+
+## Carte
 
 Seuls les éléments de la carte sont utilisés : le bouton **BOOT** (appui de 5 s = effacer l'appairage Matter) et
 la **LED bleue** (clignote : à appairer · fixe : connecté · éteinte : hors ligne). Il suffit d'alimenter la carte en USB.
@@ -56,13 +91,13 @@ Chaque appui est journalisé (`device_action`, visible dans le journal de l'admi
 |---|---|
 | 1 | valide la mission de l'**équipe Rouge** |
 | 2 | valide la mission de l'**équipe Verte** |
-| 3 | valide la mission de l'**équipe Bleue** |
+| 3 | valide la mission de l'**équipe Bleue** (aussi déclenchée par la séquence des capteurs de porte) |
 | 4 | valide la mission de l'**équipe Or** |
 | 5 | **protocole d'urgence** : tant que le MJ ne l'a pas autorisé (onglet Partie, « 🚨 Autoriser le protocole d'urgence »), la TV affiche « Soyez patients mes lutins, laissez encore un peu de temps aux adultes de résoudre l'enquête » ; une fois autorisé, lance toujours la vidéo du secours des lutins, même si les équipes n'ont pas fini (en enquête ou en finale, la partie passe aussi en phase Secours puis Fin) |
 | 6 à 10 | rien pour l'instant : réponse `{"action": n, "defined": false, "changed": false}` |
 
 Valider une équipe déjà validée est sans effet (`"changed": false`). La validation passe par les mêmes étapes
-journalisées qu'au téléphone du MJ (source `device`) et s'affiche aussitôt sur tous les écrans. Le boîtier envoie un Le boîtier envoie un
+journalisées qu'au téléphone du MJ (source `device`) et s'affiche aussitôt sur tous les écrans. Le boîtier envoie un
 `Idempotency-Key` par appui : ses nouvelles tentatives réseau ne rejouent pas l'action.
 
 Pour brancher une action, ajouter une fonction dans `ActionsService.handlers`

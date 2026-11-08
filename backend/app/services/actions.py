@@ -6,6 +6,7 @@ dans `handlers` est exécutée ; un numéro sans fonction ne fait rien.
 
 Actions définies :
   1 à 4  valider la mission de l'équipe rouge, verte, bleue, or
+         (3 est aussi envoyée par l'ESP32 quand les 3 portes sont fermées dans le bon ordre)
   5      protocole d'urgence : secours des lutins si le MJ l'a autorisé, sinon message de patience
 """
 
