@@ -1,0 +1,114 @@
+{
+ "jobs": [
+  {
+   "id": "dos",
+   "out": "cartes-mission/dos.png",
+   "prompt": "Reproduis fidèlement le DOS de carte visible en haut de l'image de référence (le recto vert « MISSION SECRÈTE ») : fond vert sapin texturé, double cadre doré fin, branches de houx avec baies rouges dans les quatre coins, flocons dorés, enveloppe kraft scellée d'un cachet de cire rouge à tête de renne doré, ficelle sucre d'orge rouge et blanche, tampon rouge « MISSION SECRÈTE ». Une seule carte, vue de face, à plat, portrait, qui remplit TOUTE l'image jusqu'aux bords (fond perdu) : coins carrés, aucune marge blanche, aucun trait de coupe, aucune cote ni mesure, aucun texte autre que « MISSION SECRÈTE ». Garder le cadre doré et les éléments importants à au moins 6 % des bords haut et bas, car l'image sera recadrée légèrement en hauteur.",
+   "references": [
+    "design-reference.jpg"
+   ],
+   "size": "1024x1536",
+   "quality": "high detail, final quality",
+   "exact_text": [
+    "MISSION SECRÈTE"
+   ]
+  },
+  {
+   "id": "face-fond",
+   "out": "cartes-mission/face-fond.png",
+   "prompt": "Reproduis fidèlement la FACE de carte visible en bas de l'image de référence (le verso crème) mais SANS contenu de mission : fond parchemin crème vieilli, bordure vert sapin avec filet doré et coins ornés, petit bouquet de houx aux baies rouges centré en haut, banderole ruban rouge « MISSION SECRÈTE » en lettres crème sous le houx, et en bas une forêt de sapins verts avec une maison aux fenêtres éclairées sur la neige. Toute la zone centrale entre la banderole et la forêt doit rester du parchemin VIDE et uni : pas de badge de difficulté, pas d'étoiles, pas de points, pas de texte de mission, pas de filet décoratif. Une seule carte, vue de face, à plat, portrait, qui remplit TOUTE l'image jusqu'aux bords (fond perdu) : coins carrés, aucune marge blanche, aucun trait de coupe, aucune cote ni mesure, aucun texte autre que « MISSION SECRÈTE ». Garder le bord vert, la banderole et la forêt à au moins 6 % des bords haut et bas, car l'image sera recadrée légèrement en hauteur.",
+   "references": [
+    "design-reference.jpg"
+   ],
+   "size": "1024x1536",
+   "quality": "high detail, final quality",
+   "exact_text": [
+    "MISSION SECRÈTE"
+   ]
+  },
+  {
+   "id": "badge-facile",
+   "out": "cartes-mission/badge-facile.png",
+   "references": [
+    "design-reference.jpg"
+   ],
+   "background": "transparent",
+   "size": "1536x1024",
+   "quality": "high detail, final quality",
+   "exact_text": [
+    "Facile"
+   ],
+   "prompt": "Reproduis fidèlement le badge vert « ★ Facile » de la première carte de l'image de référence : une pilule horizontale arrondie couleur vert sapin (#1f5130) avec léger relief et fin liseré doré, à gauche une pastille ronde plus foncée contenant une seule étoile blanche alignées, à droite le mot « Facile » en serif gras crème/blanc. Même style, mêmes proportions que la référence. Fond entièrement transparent, objet seul, centré, vu de face, sans ombre portée sur le fond, sans aucun autre élément ni texte. Haute définition, rendu net pour l'impression."
+  },
+  {
+   "id": "badge-moyen",
+   "out": "cartes-mission/badge-moyen.png",
+   "references": [
+    "design-reference.jpg"
+   ],
+   "background": "transparent",
+   "size": "1536x1024",
+   "quality": "high detail, final quality",
+   "exact_text": [
+    "Moyen"
+   ],
+   "prompt": "Reproduis fidèlement le badge ocre « ★★ Moyen » de la deuxième carte de l'image de référence : une pilule horizontale arrondie couleur ocre doré / caramel (#b47a1c) avec léger relief et fin liseré doré, à gauche une pastille ronde plus foncée contenant deux étoiles blanches alignées, à droite le mot « Moyen » en serif gras crème/blanc. Même style, mêmes proportions que la référence. Fond entièrement transparent, objet seul, centré, vu de face, sans ombre portée sur le fond, sans aucun autre élément ni texte. Haute définition, rendu net pour l'impression."
+  },
+  {
+   "id": "badge-difficile",
+   "out": "cartes-mission/badge-difficile.png",
+   "references": [
+    "design-reference.jpg"
+   ],
+   "background": "transparent",
+   "size": "1536x1024",
+   "quality": "high detail, final quality",
+   "exact_text": [
+    "Difficile"
+   ],
+   "prompt": "Reproduis fidèlement le badge rouge « ★★★ Difficile » de la troisième carte de l'image de référence : une pilule horizontale arrondie couleur rouge bordeaux (#9b1c2c) avec léger relief et fin liseré doré, à gauche une pastille ronde plus foncée contenant trois étoiles blanches alignées, à droite le mot « Difficile » en serif gras crème/blanc. Même style, mêmes proportions que la référence. Fond entièrement transparent, objet seul, centré, vu de face, sans ombre portée sur le fond, sans aucun autre élément ni texte. Haute définition, rendu net pour l'impression."
+  },
+  {
+   "id": "points-1",
+   "out": "cartes-mission/points-1.png",
+   "references": [
+    "design-reference.jpg"
+   ],
+   "background": "transparent",
+   "size": "1536x1024",
+   "quality": "high detail, final quality",
+   "exact_text": [
+    "1 pt"
+   ],
+   "prompt": "Reproduis fidèlement l'étiquette de points de l'image de référence : un petit morceau de parchemin crème doré aux bords légèrement déchirés et irréguliers, très légèrement incliné, sur lequel est écrit « 1 pt » en serif gras rouge foncé, le chiffre « 1 » grand et « pt » plus petit, légèrement italique. Même style que l'étiquette « 1 pt » / « 2 pts » / « 3 pts » de la référence. Fond entièrement transparent, objet seul, centré, vu de face, sans ombre portée sur le fond, sans aucun autre élément ni texte. Haute définition, rendu net pour l'impression."
+  },
+  {
+   "id": "points-2",
+   "out": "cartes-mission/points-2.png",
+   "references": [
+    "design-reference.jpg"
+   ],
+   "background": "transparent",
+   "size": "1536x1024",
+   "quality": "high detail, final quality",
+   "exact_text": [
+    "2 pts"
+   ],
+   "prompt": "Reproduis fidèlement l'étiquette de points de l'image de référence : un petit morceau de parchemin crème doré aux bords légèrement déchirés et irréguliers, très légèrement incliné, sur lequel est écrit « 2 pts » en serif gras rouge foncé, le chiffre « 2 » grand et « pts » plus petit, légèrement italique. Même style que l'étiquette « 1 pt » / « 2 pts » / « 3 pts » de la référence. Fond entièrement transparent, objet seul, centré, vu de face, sans ombre portée sur le fond, sans aucun autre élément ni texte. Haute définition, rendu net pour l'impression."
+  },
+  {
+   "id": "points-3",
+   "out": "cartes-mission/points-3.png",
+   "references": [
+    "design-reference.jpg"
+   ],
+   "background": "transparent",
+   "size": "1536x1024",
+   "quality": "high detail, final quality",
+   "exact_text": [
+    "3 pts"
+   ],
+   "prompt": "Reproduis fidèlement l'étiquette de points de l'image de référence : un petit morceau de parchemin crème doré aux bords légèrement déchirés et irréguliers, très légèrement incliné, sur lequel est écrit « 3 pts » en serif gras rouge foncé, le chiffre « 3 » grand et « pts » plus petit, légèrement italique. Même style que l'étiquette « 1 pt » / « 2 pts » / « 3 pts » de la référence. Fond entièrement transparent, objet seul, centré, vu de face, sans ombre portée sur le fond, sans aucun autre élément ni texte. Haute définition, rendu net pour l'impression."
+  }
+ ]
+}

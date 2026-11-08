@@ -1,0 +1,8 @@
+# Exemple de liste de missions. niveau : facile (1 pt), moyen (2 pts) ou difficile (3 pts).
+missions:
+  - niveau: facile
+    texte: "Fais dire à ta cible « Ça dépend »."
+  - niveau: moyen
+    texte: "Fais citer un film à ta cible."
+  - niveau: difficile
+    texte: "Fais raconter une anecdote personnelle à ta cible."
