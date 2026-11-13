@@ -48,6 +48,7 @@ export const api = {
   cancelCountdown: () => post("/api/admin/game/countdown/cancel"),
   setPhase: (phase: Phase, confirm = false) => post("/api/admin/game/phase", { phase, confirm }),
   emergency: (authorized: boolean) => post("/api/admin/game/emergency", { authorized }),
+  relayPulse: () => post<{ changed: boolean; pulse_ms?: number | null }>("/api/admin/relay/pulse"),
   reset: () => post("/api/admin/game/reset", { confirm: true }),
   backup: () => post<{ file: string }>("/api/admin/backup"),
   events: (limit = 200) => request<GameEvent[]>("GET", `/api/admin/events?limit=${limit}`),

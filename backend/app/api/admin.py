@@ -1,5 +1,6 @@
 """Commandes du maître du jeu. Toutes nécessitent une session admin."""
 
+import asyncio
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -7,6 +8,8 @@ from pydantic import BaseModel, Field
 
 from app.api.deps import command, hub, require_admin, services
 from app.core.game_config import PHASES
+from app.services.common import log_event
+from app.services.relay import RelayError, pulse_relay
 
 router = APIRouter(prefix="/api/admin", tags=["admin"], dependencies=[Depends(require_admin)])
 
@@ -204,3 +207,22 @@ async def schedule_update(item_id: str, body: ScheduleBody, request: Request, sv
 @router.post("/schedule/{item_id}/fire")
 async def schedule_fire(item_id: str, request: Request, svc=Depends(services)):
     return await command(request, lambda s: svc.schedule.fire(s, item_id))
+
+
+# ------------------------------------------------------------------- relais
+@router.post("/relay/pulse")
+async def relay_pulse(request: Request, svc=Depends(services)):
+    """Colle le relais de l'ESP8266 des capteurs de porte pendant 5 s (même effet que la bonne séquence)."""
+    settings = request.app.state.settings
+    if not settings.relay_url:
+        raise HTTPException(status_code=503, detail="RELAY_URL non configuré sur le serveur")
+    try:
+        result = await asyncio.to_thread(pulse_relay, settings.relay_url, settings.device_token)
+    except RelayError as exc:
+        error = str(exc)
+        await command(request, lambda s: log_event(
+            s, svc.clock, "relay_failed", f"Relais injoignable : {error}", {"error": error}, "admin"))
+        raise HTTPException(status_code=502, detail=f"relais injoignable : {error}") from exc
+    await command(request, lambda s: log_event(
+        s, svc.clock, "relay_pulse", "Relais déclenché depuis l'admin", result, "admin"))
+    return {"changed": True} | result

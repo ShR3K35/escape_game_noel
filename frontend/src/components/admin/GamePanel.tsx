@@ -122,6 +122,21 @@ function EmergencyControl({ state }: { state: AdminState }) {
   );
 }
 
+/** Relais de l'ESP8266 des capteurs de porte : le coller 5 s sans attendre la bonne séquence. */
+function RelayControl() {
+  return (
+    <div className="rounded-lg border border-white/15 bg-black/25 p-3" data-testid="relay-control">
+      <p className="mb-1 text-sm font-bold text-or-300">🧲 Relais des portes</p>
+      <p className="mb-2 text-xs text-parchemin-200/70">
+        Déclenche le relais pendant 5 s, comme si les trois portes avaient été fermées dans le bon ordre.
+      </p>
+      <ActionButton className="w-full" onAction={() => api.relayPulse()} success="Relais déclenché pendant 5 s">
+        ⚡ Forcer le relais (5 s)
+      </ActionButton>
+    </div>
+  );
+}
+
 export function GamePanel({ state, clockOffset }: { state: AdminState; clockOffset: number }) {
   const now = useNow(clockOffset);
   const elapsed = state.started_at ? now - Date.parse(state.started_at) : 0;
@@ -202,6 +217,7 @@ export function GamePanel({ state, clockOffset }: { state: AdminState; clockOffs
               })}
           </div>
           {state.phase !== "FIN" && <EmergencyControl state={state} />}
+          <RelayControl />
         </div>
       </Card>
 

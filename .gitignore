@@ -29,6 +29,15 @@ Thumbs.db
 
 # Firmware : secrets locaux
 firmware/esp32-matter/escape_noel_matter/config.h
+firmware/esp8266-portes-relais/esp8266-portes-relais/config.h
+
+# Dossiers de travail images/vidéos (non versionnés)
+assets/
+generated-images/
+
+# Caches et artefacts de build
+frontend/.vitest/
+firmware/esp32-matter/escape_noel_matter/build/
 
 # Données Zigbee2MQTT du Raspberry Pi (clé réseau, appareils appairés)
 zigbee/data/
