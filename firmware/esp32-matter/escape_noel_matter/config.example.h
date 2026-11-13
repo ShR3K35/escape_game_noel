@@ -33,9 +33,15 @@
 #define DOOR_PINS {32, 33, 25}
 // Ordre de fermeture qui réussit l'énigme (numéros de capteur).
 #define DOOR_SEQUENCE {1, 2, 3}
-// Action déclenchée : 3 = valider la mission de l'équipe Bleue « Les Témoins ».
-#define DOOR_SEQUENCE_ACTION 3
 // Délai max entre deux fermetures (ms), 0 = illimité.
 #define DOOR_SEQUENCE_TIMEOUT_MS 0
 // 1 si câblé sur NO (porte fermée = contact fermé = LOW), 0 si câblé sur NC.
 #define DOOR_CLOSED_IS_LOW 1
+
+// --- Relais (module JQC3F-05VDC-C) -------------------------------------------------
+// Collé pendant RELAY_PULSE_MS quand la séquence des portes est réussie.
+// Module : VCC → VIN (5 V), GND → GND, IN → RELAY_PIN.
+#define RELAY_PIN 26
+// 1 si le module colle quand IN est à LOW (cas le plus courant), 0 s'il colle à HIGH.
+#define RELAY_ACTIVE_LOW 1
+#define RELAY_PULSE_MS 5000

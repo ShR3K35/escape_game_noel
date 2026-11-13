@@ -29,6 +29,9 @@ class Settings(BaseSettings):
 
     # Jeton partagé avec le boîtier ESP32 Matter (en-tête X-Device-Token). Obligatoire en production.
     device_token: str = ""
+    # Relais ESP8266 des capteurs de porte (ex. http://192.168.1.50). Vide = commande désactivée.
+    # Il est appelé avec le même DEVICE_TOKEN (en-tête X-Device-Token).
+    relay_url: str = ""
 
     demo_mode: bool = False
     time_scale: float | None = None

@@ -1,5 +1,5 @@
 // Escape de Noël — boîtier Matter ESP32 DevKit V1 : 10 boutons virtuels + 5 lampes RGB virtuelles,
-// plus 3 capteurs de porte magnétiques (seul câblage). Le reste se passe dans l'application domotique.
+// plus 3 capteurs de porte magnétiques et 1 relais (seul câblage). Le reste se passe dans l'application domotique.
 //
 // Endpoints Matter (dans cet ordre, l'application les nomme dans l'ordre de création) :
 //   1-10  « Action 1..10 »  prise On/Off momentanée : l'allumer depuis l'application appelle
@@ -7,9 +7,8 @@
 //   11-15 « Lampe 1..5 »    lampe couleur virtuelle (on/off + couleur), sans LED physique :
 //                           son état est seulement mémorisé par Matter et affiché sur le port série.
 //
-// Capteurs de porte (seul câblage) : 3 contacts magnétiques NO entre GND et les GPIO de DOOR_PINS.
-// Les fermer dans l'ordre DOOR_SEQUENCE déclenche l'action DOOR_SEQUENCE_ACTION (3 = mission de
-// l'équipe Bleue « Les Témoins »), exactement comme un appui sur « Action 3 » dans l'application.
+// Capteurs de porte : 3 contacts magnétiques NO entre GND et les GPIO de DOOR_PINS.
+// Les fermer dans l'ordre DOOR_SEQUENCE colle le relais (GPIO RELAY_PIN) pendant RELAY_PULSE_MS (5 s).
 //
 // Carte « ESP32 Dev Module », Partition Scheme « Huge APP (3MB No OTA/1MB SPIFFS) ».
 // Voir firmware/esp32-matter/README.md.
@@ -42,8 +41,15 @@
 #define DOOR_SEQUENCE {1, 2, 3}
 #endif
 // Action envoyée au serveur quand la séquence est réussie (3 = valider l'équipe Bleue « Les Témoins »).
-#ifndef DOOR_SEQUENCE_ACTION
-#define DOOR_SEQUENCE_ACTION 3
+// Relais (module JQC3F-05VDC-C) collé pendant RELAY_PULSE_MS quand la séquence est réussie.
+#ifndef RELAY_PIN
+#define RELAY_PIN 26
+#endif
+#ifndef RELAY_ACTIVE_LOW
+#define RELAY_ACTIVE_LOW 1
+#endif
+#ifndef RELAY_PULSE_MS
+#define RELAY_PULSE_MS 5000
 #endif
 // Délai max entre deux fermetures de la séquence (ms) ; 0 = pas de limite.
 #ifndef DOOR_SEQUENCE_TIMEOUT_MS
@@ -130,13 +136,37 @@ constexpr uint8_t DOOR_PIN_LIST[] = DOOR_PINS;
 constexpr uint8_t DOOR_COUNT = sizeof(DOOR_PIN_LIST);
 constexpr uint8_t DOOR_SEQ[] = DOOR_SEQUENCE;
 constexpr uint8_t DOOR_SEQ_LEN = sizeof(DOOR_SEQ);
-static_assert(DOOR_SEQUENCE_ACTION >= 1 && DOOR_SEQUENCE_ACTION <= ACTION_COUNT, "DOOR_SEQUENCE_ACTION hors limites");
 
 bool doorClosed[DOOR_COUNT];      // état stable (anti-rebond appliqué)
 bool doorRaw[DOOR_COUNT];         // dernière lecture brute
 uint32_t doorRawSince[DOOR_COUNT];
 uint8_t seqProgress = 0;          // nombre de fermetures correctes enchaînées
 uint32_t seqLastStepAt = 0;
+
+uint32_t relayOffAt = 0;           // 0 = relais au repos
+
+void writeRelay(bool on) { digitalWrite(RELAY_PIN, on == !RELAY_ACTIVE_LOW ? HIGH : LOW); }
+
+void setupRelay() {
+  writeRelay(false);  // niveau de repos fixé avant de passer en sortie : pas de clic au démarrage
+  pinMode(RELAY_PIN, OUTPUT);
+  writeRelay(false);
+}
+
+void pulseRelay() {
+  writeRelay(true);
+  relayOffAt = millis() + RELAY_PULSE_MS;
+  if (relayOffAt == 0) relayOffAt = 1;
+  Serial.printf("[relais] collé pour %u ms\n", (unsigned)RELAY_PULSE_MS);
+}
+
+void releaseRelay() {
+  if (relayOffAt != 0 && (int32_t)(millis() - relayOffAt) >= 0) {
+    relayOffAt = 0;
+    writeRelay(false);
+    Serial.println("[relais] relâché");
+  }
+}
 
 bool readDoorClosed(uint8_t d) {
   bool low = digitalRead(DOOR_PIN_LIST[d]) == LOW;
@@ -170,10 +200,9 @@ void onDoorChange(uint8_t d, bool closed) {
   seqLastStepAt = millis();
   Serial.printf("[portes] séquence %u/%u\n", seqProgress, DOOR_SEQ_LEN);
   if (seqProgress == DOOR_SEQ_LEN) {
-    Serial.printf("[portes] séquence réussie -> action %u\n", DOOR_SEQUENCE_ACTION);
+    Serial.println("[portes] séquence réussie -> relais");
     seqProgress = 0;
-    uint8_t index = DOOR_SEQUENCE_ACTION - 1;
-    if (xQueueSend(actionQueue, &index, 0) != pdTRUE) Serial.println("[portes] file pleine, action perdue");
+    pulseRelay();
   }
 }
 
@@ -252,6 +281,7 @@ void setup() {
   pinMode(STATUS_LED_PIN, OUTPUT);
   pinMode(RESET_BUTTON_PIN, INPUT_PULLUP);
   actionQueue = xQueueCreate(16, sizeof(uint8_t));
+  setupRelay();
   setupDoors();
 
 #if !CONFIG_ENABLE_CHIPOBLE
@@ -293,6 +323,7 @@ void loop() {
 
   releaseActions();
   pollDoors();
+  releaseRelay();
   handleFactoryReset();
   updateStatusLed();
 

@@ -1,7 +1,7 @@
-# Boîtier Matter ESP32 : 10 boutons + 5 lampes RGB virtuels + 3 capteurs de porte
+# Boîtier Matter ESP32 : 10 boutons + 5 lampes RGB virtuels + 3 capteurs de porte + 1 relais
 
 Un ESP32 DevKit V1 (ESP32-WROOM-32) exposé en **Matter over Wi-Fi** : les boutons et les lampes n'existent que dans
-l'application domotique. Le seul câblage concerne les 3 capteurs de porte (voir plus bas).
+l'application domotique. Le seul câblage concerne les 3 capteurs de porte et le relais (voir plus bas).
 
 | Endpoints | Dans l'application (Smart Life, Google Home, Apple Maison, Home Assistant…) | Effet |
 |---|---|---|
@@ -13,12 +13,11 @@ l'application domotique. Le seul câblage concerne les 3 capteurs de porte (voir
                                           X-Device-Token + Idempotency-Key
 ```
 
-## Capteurs de porte : énigme de l'équipe Bleue « Les Témoins »
+## Capteurs de porte et relais
 
 Trois contacts magnétiques (NO/NC) sont branchés sur la carte. Quand les trois portes sont **fermées dans le bon
-ordre**, l'ESP32 envoie lui-même `POST /api/devices/actions/3`, ce qui **valide la mission de l'équipe Bleue**.
-Le résultat est le même qu'un appui sur « Action 3 » dans l'application. Les capteurs fonctionnent même si le boîtier
-n'est pas appairé en Matter : seul le Wi-Fi est nécessaire.
+ordre**, l'ESP32 **colle le relais pendant 5 s** (`RELAY_PULSE_MS`), sans appeler le serveur. Les capteurs et le relais
+fonctionnent même si le boîtier n'est pas appairé en Matter, et même sans réseau.
 
 | Capteur | GPIO (DevKit V1) | Câblage |
 |---|---|---|
@@ -37,14 +36,31 @@ Règles de la séquence (ordre par défaut 1 → 2 → 3, réglable avec `DOOR_S
   de la séquence, elle compte comme nouveau départ.
 - Rouvrir une porte déjà comptée remet aussi la séquence à zéro : il faut finir avec les trois portes fermées.
 - `DOOR_SEQUENCE_TIMEOUT_MS` limite en option le délai entre deux fermetures (0 = illimité).
-- Une fois la séquence réussie, elle repart de zéro. Si l'équipe est déjà validée, le serveur ne fait rien
-  (`"changed": false`).
+- Une fois la séquence réussie, elle repart de zéro. La réussir à nouveau pendant l'impulsion la prolonge de 5 s.
 
 Le moniteur série affiche chaque ouverture et fermeture (`[porte 2] fermée`, `[portes] séquence 2/3`…), ce qui
 permet de tester le câblage.
 
-Les capteurs se règlent dans `config.h` (`DOOR_PINS`, `DOOR_SEQUENCE`, `DOOR_SEQUENCE_ACTION`…). Sans ces lignes,
-les valeurs par défaut ci-dessus s'appliquent.
+### Relais JQC3F-05VDC-C
+
+Le relais 5 V se branche **sous forme de module** (carte avec transistor, diode et LED) : une broche d'ESP32 ne peut
+pas alimenter la bobine directement.
+
+| Module relais | ESP32 DevKit V1 |
+|---|---|
+| VCC (ou DC+) | VIN (5 V de l'USB) |
+| GND (ou DC−) | GND |
+| IN | D26 |
+
+Côté puissance, l'appareil à commander se branche entre **COM** et **NO** (fermé pendant les 5 s). La plupart des
+modules collent quand IN est à LOW (`RELAY_ACTIVE_LOW 1`, valeur par défaut) ; si le relais reste collé au repos et
+se relâche pendant l'impulsion, mettre `RELAY_ACTIVE_LOW 0`. Le niveau de repos est fixé avant que la broche passe en
+sortie, pour éviter un clic au démarrage.
+
+Le moniteur série affiche `[relais] collé pour 5000 ms` puis `[relais] relâché`.
+
+Les capteurs et le relais se règlent dans `config.h` (`DOOR_PINS`, `DOOR_SEQUENCE`, `RELAY_PIN`, `RELAY_ACTIVE_LOW`,
+`RELAY_PULSE_MS`…). Sans ces lignes, les valeurs par défaut ci-dessus s'appliquent.
 
 ## Carte
 
@@ -91,7 +107,7 @@ Chaque appui est journalisé (`device_action`, visible dans le journal de l'admi
 |---|---|
 | 1 | valide la mission de l'**équipe Rouge** |
 | 2 | valide la mission de l'**équipe Verte** |
-| 3 | valide la mission de l'**équipe Bleue** (aussi déclenchée par la séquence des capteurs de porte) |
+| 3 | valide la mission de l'**équipe Bleue** |
 | 4 | valide la mission de l'**équipe Or** |
 | 5 | **protocole d'urgence** : tant que le MJ ne l'a pas autorisé (onglet Partie, « 🚨 Autoriser le protocole d'urgence »), la TV affiche « Soyez patients mes lutins, laissez encore un peu de temps aux adultes de résoudre l'enquête » ; une fois autorisé, lance toujours la vidéo du secours des lutins, même si les équipes n'ont pas fini (en enquête ou en finale, la partie passe aussi en phase Secours puis Fin) |
 | 6 à 10 | rien pour l'instant : réponse `{"action": n, "defined": false, "changed": false}` |
