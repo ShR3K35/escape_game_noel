@@ -22,8 +22,13 @@ Les portes et le relais fonctionnent même sans Wi-Fi. Le Wi-Fi ne sert qu'au bo
 | Module relais JQC3F-05VDC-C | VCC → VIN/5V, GND → GND, IN → D1 (GPIO5) |
 
 L'appareil commandé se branche entre **COM** et **NO** du relais. Ne pas utiliser D3, D4, D8 (broches de démarrage)
-ni D0 (pas de pull-up interne). Si le relais reste collé au repos et se relâche pendant l'impulsion, mettre
-`RELAY_ACTIVE_LOW = false` en haut du `.ino`. Les autres réglages (ordre, durée, NO/NC) sont au même endroit.
+ni D0 (pas de pull-up interne). Les réglages sont en haut du `.ino` :
+
+- `RELAY_ACTIVE_LOW = false` : le module utilisé colle quand IN est à HIGH (testé : les 3,3 V de l'ESP8266 suffisent).
+  Pour un module qui colle à LOW (LED allumée au repos), mettre `true`.
+- `DOOR_CLOSED_IS_LOW = false` : les capteurs utilisés sont NC (aimant présent = contact ouvert = HIGH).
+  Pour des capteurs câblés sur NO, mettre `true`.
+- ordre de la séquence, durée de l'impulsion, anti-rebond.
 
 ## Configuration
 

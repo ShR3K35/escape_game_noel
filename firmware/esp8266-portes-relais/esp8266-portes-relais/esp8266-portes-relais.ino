@@ -27,11 +27,11 @@
 const uint8_t DOOR_PINS[] = {14, 12, 13};  // D5, D6, D7
 const uint8_t DOOR_SEQUENCE[] = {1, 2, 3};  // ordre de fermeture attendu (numéros de capteur)
 const uint32_t DOOR_SEQUENCE_TIMEOUT_MS = 0;  // délai max entre deux fermetures, 0 = illimité
-const bool DOOR_CLOSED_IS_LOW = true;       // true si câblé sur NO, false si câblé sur NC
+const bool DOOR_CLOSED_IS_LOW = false;      // true si câblé sur NO, false si câblé sur NC (aimant = contact ouvert)
 const uint32_t DOOR_DEBOUNCE_MS = 50;
 
 const uint8_t RELAY_PIN = 5;                // D1
-const bool RELAY_ACTIVE_LOW = true;         // la plupart des modules collent quand IN est à LOW
+const bool RELAY_ACTIVE_LOW = false;        // ce module colle quand IN est à HIGH (mettre true pour un module actif à LOW)
 const uint32_t RELAY_PULSE_MS = 5000;
 // -----------------------------------------------------------------------------------------
 
