@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
+
+import type { ArcadeGameId } from "../arcade/ArcadeHost";
 
 import { Confetti, Snowfall } from "../components/Ambient";
 import { CodeGame } from "../games/CodeGame";
@@ -18,6 +20,14 @@ import type {
   Reward,
   TourneeContent,
 } from "../services/types";
+
+// Jeux bonus débloqués quand toutes les missions sont réussies : chargés seulement à l'ouverture (three.js est lourd).
+const ArcadeHost = lazy(() => import("../arcade/ArcadeHost"));
+
+const ARCADE: { id: ArcadeGameId; icon: string; title: string; subtitle: string }[] = [
+  { id: "plateformes", icon: "🎅", title: "La Grande Tournée", subtitle: "Saute, cours et récolte les clochettes !" },
+  { id: "kart", icon: "🏎️", title: "Le Grand Prix", subtitle: "Course de karts sur 4 circuits enneigés" },
+];
 
 const ICONS: Record<KidsGameId, string> = { constellation: "✨", machine: "⚙️", tournee: "🎅", code: "🛷" };
 
@@ -121,18 +131,47 @@ function Celebration({ title, reward, chest, onClose }: {
   );
 }
 
-function FinalScreen({ title, message, games }: { title: string; message: string; games: KidsGame[] }) {
+function FinalScreen({ title, message, games, onPlay }: {
+  title: string;
+  message: string;
+  games: KidsGame[];
+  onPlay: (id: ArcadeGameId) => void;
+}) {
   return (
-    <div className="relative flex flex-1 flex-col items-center justify-center overflow-hidden text-center" data-testid="kids-final">
+    <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto overflow-x-hidden text-center" data-testid="kids-final">
       <Confetti count={60} />
       <div className="pointer-events-none absolute left-0 top-10 text-7xl" style={{ animation: "sleigh 7s linear infinite" }}>
         🛷🦌🦌
       </div>
-      <p className="text-8xl">🏆</p>
-      <h2 className="mt-4 text-5xl font-black text-or-300 drop-shadow">{title}</h2>
-      <p className="parchment mt-6 max-w-2xl rounded-3xl p-6 text-2xl font-bold leading-snug shadow-xl">{message}</p>
+      <p className="text-8xl short:text-5xl">🏆</p>
+      <h2 className="mt-4 text-5xl font-black text-or-300 drop-shadow short:mt-1 short:text-4xl">{title}</h2>
+      <p className="parchment mt-6 max-w-2xl rounded-3xl p-6 text-2xl font-bold leading-snug shadow-xl short:mt-3 short:p-4 short:text-xl">{message}</p>
       <div className="mt-6">
         <RewardBar games={games} />
+      </div>
+      <div className="relative z-10 mt-8 w-full max-w-3xl short:mt-4" data-testid="arcade-menu">
+        <h3 className="text-3xl font-black text-or-300 drop-shadow">🎮 Salle de jeux des lutins</h3>
+        <div className="mt-3 grid gap-4 sm:grid-cols-2">
+          {ARCADE.map((a) => (
+            <button
+              key={a.id}
+              type="button"
+              data-arcade={a.id}
+              onClick={() => {
+                sfx.bell();
+                onPlay(a.id);
+              }}
+              className="glow-pulse flex flex-col items-center rounded-[2rem] border-4 border-or-400 bg-bordeaux-700 p-4 text-white shadow-xl"
+            >
+              <span className="text-5xl" style={{ animation: "float 3s ease-in-out infinite" }}>
+                {a.icon}
+              </span>
+              <span className="mt-1 text-2xl font-black">{a.title}</span>
+              <span className="text-lg font-bold text-white/85">{a.subtitle}</span>
+              <span className="mt-1 text-lg font-black text-or-300">▶ Jouer</span>
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -145,6 +184,7 @@ export default function KidsPage() {
   const [now, setNow] = useState(() => Date.now());
   const [sound, setSound] = useState(soundEnabled);
   const [error, setError] = useState<string | null>(null);
+  const [arcade, setArcade] = useState<ArcadeGameId | null>(null);
 
   const open = data?.games.find((g) => g.id === openId) ?? null;
 
@@ -216,7 +256,7 @@ export default function KidsPage() {
     // et centre son contenu. Seul le corps d'un jeu défile, en dernier recours.
     <div className="relative flex h-dvh select-none flex-col overflow-hidden bg-[linear-gradient(180deg,var(--color-sapin-800),var(--color-sapin-950))] font-sans">
       {/* Les flocons de la page ne tombent que sur la carte : en jeu, ils coûteraient des images au jeu lui-même. */}
-      {!open && <Snowfall count={35} />}
+      {!open && !arcade && <Snowfall count={35} />}
       <header className="relative z-10 flex shrink-0 flex-wrap items-center justify-between gap-3 px-4 py-3 short:py-1">
         <button
           onClick={() => setOpenId(null)}
@@ -272,7 +312,7 @@ export default function KidsPage() {
         )}
 
         {data && !open && data.all_completed && data.final && (
-          <FinalScreen title={data.final.title} message={data.final.message} games={data.games} />
+          <FinalScreen title={data.final.title} message={data.final.message} games={data.games} onPlay={setArcade} />
         )}
 
         {data && !open && !data.all_completed && (
@@ -309,6 +349,12 @@ export default function KidsPage() {
           </div>
         )}
       </main>
+
+      {arcade && data?.all_completed && (
+        <Suspense fallback={<div className="fixed inset-0 z-50 bg-[#0b0d2a]" />}>
+          <ArcadeHost game={arcade} onExit={() => setArcade(null)} />
+        </Suspense>
+      )}
 
       {celebrate && celebrate.at <= now && (
         <Celebration
