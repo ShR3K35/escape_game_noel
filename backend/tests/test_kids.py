@@ -328,3 +328,93 @@ def test_draw_service_is_seedable():
         KidsService(cfg, clock=lambda: None, rng=random.Random(seed))._new_draw(row)
         rows.append(row.data["questions"])
     assert rows[0] == rows[1]
+
+
+def test_machine_difficulty_set_by_admin(admin):
+    admin.post("/api/admin/kids/constellation/complete")
+    _, q0 = current_order(admin)
+    assert attempt(admin, "machine", {"order": 0, "answer": q0.answer}).json()["correct"]
+    r = admin.post("/api/admin/kids/machine/difficulty", json={"level": "difficile"})
+    assert r.json() == {"changed": True}
+    assert admin.post("/api/admin/kids/machine/difficulty", json={"level": "difficile"}).json() == {"changed": False}
+    assert admin.post("/api/admin/kids/machine/difficulty", json={"level": "extreme"}).status_code == 404
+    m = {g["id"]: g for g in admin.get("/api/admin/state").json()["kids"]["games"]}["machine"]
+    assert m["machine_difficulty"]["current"] == "difficile" and m["step"] == 1
+    # la commande réussie est gardée, les suivantes sont tirées au niveau difficile : [1, 3, 4]
+    ids = [q0.id]
+    for i in range(1, MACHINE.total_orders):
+        _, q = current_order(admin)
+        ids.append(q.id)
+        attempt(admin, "machine", {"order": i, "answer": q.answer})
+    assert len(set(ids)) == 8
+    assert [BY_TEXT_ID[i].level for i in ids[1:]] == [2, 2, 2, 3, 3, 3, 3]
+    # le niveau survit à la réinitialisation
+    admin.post("/api/admin/kids/machine/reset")
+    _, q = current_order(admin)
+    assert q.level == 1 and games(admin)["machine"]["step"] == 0
+    m = {g["id"]: g for g in admin.get("/api/admin/state").json()["kids"]["games"]}["machine"]
+    assert m["machine_difficulty"]["current"] == "difficile"
+
+
+def test_machine_difficulty_requires_admin(client):
+    client.cookies.clear()
+    assert client.post("/api/admin/kids/machine/difficulty", json={"level": "facile"}).status_code == 401
+
+
+# ------------------------------------------------------------- salle de jeux (jeu libre)
+def test_free_play_closed_until_all_missions_done(client):
+    state = client.get("/api/kids/state").json()
+    assert state["free_play"] is None
+    r = client.get("/api/kids/free/machine", params={"level": "facile"})
+    assert r.status_code == 409
+
+
+def test_free_play_after_mission(client):
+    solve_all(client)
+    state = client.get("/api/kids/state").json()
+    catalog = {g["id"]: g for g in state["free_play"]}
+    assert list(catalog) == ["constellation", "machine", "tournee"]
+    for g in catalog.values():
+        assert [lv["id"] for lv in g["levels"]] == ["facile", "normal", "difficile"]
+        assert g["default"] == "normal"
+
+    m = client.get("/api/kids/free/machine", params={"level": "facile"}).json()
+    assert len(m["orders"]) == 8 and [o["level"] for o in m["orders"]] == [1, 1, 1, 1, 1, 2, 2, 2]
+    assert all(o["answer"] in o["choices"] and o["hint"] for o in m["orders"])
+
+    c = client.get("/api/kids/free/constellation", params={"level": "difficile"}).json()
+    assert [lay["kind"] for lay in c["layouts"]] == c["rounds"]
+    assert {lay["level"] for lay in c["layouts"] if lay["kind"] == "placement"} == {10}
+    assert {lay["level"] for lay in c["layouts"] if lay["kind"] == "paires"} == {40}
+    easy = client.get("/api/kids/free/constellation", params={"level": "facile"}).json()
+    assert {lay["level"] for lay in easy["layouts"]} == {6, 27}
+
+    t = client.get("/api/kids/free/tournee", params={"level": "facile"}).json()
+    assert t["settings"]["lives"] == TOURNEE.levels["facile"].lives and t["settings"]["duration"] == TOURNEE.duration
+
+    assert client.get("/api/kids/free/code", params={"level": "normal"}).status_code == 404
+    assert client.get("/api/kids/free/machine", params={"level": "extreme"}).status_code == 404
+    # le jeu libre ne touche pas à la progression
+    assert client.get("/api/kids/state").json()["all_completed"]
+
+
+def test_final_screen_emergency_status_and_patience_message(admin):
+    from app.core.game_config import load_game_config as load
+    kids_cfg = load(REPO_ROOT / "config").kids
+    solve_all(admin)
+    final = admin.get("/api/kids/state").json()["final"]
+    assert final["message"] == kids_cfg.final_message and "réchauffer" in final["message"]
+    assert final["emergency_authorized"] is False and final["emergency_refused"] is False
+    # bouton d'urgence pressé trop tôt : message de patience
+    assert admin.post("/api/devices/actions/5").json()["effect"] == "emergency_refused"
+    final = admin.get("/api/kids/state").json()["final"]
+    assert final["message"] == kids_cfg.final_refused_message and final["emergency_refused"] is True
+    # autorisé par le maître du jeu : retour au message normal, statut « autorisé »
+    admin.post("/api/admin/game/emergency", json={"authorized": True})
+    final = admin.get("/api/kids/state").json()["final"]
+    assert final["message"] == kids_cfg.final_message and final["emergency_authorized"] is True
+    # nouvelle partie : l'appui précédent est oublié
+    admin.post("/api/admin/game/reset", json={"confirm": True})
+    solve_all(admin)
+    final = admin.get("/api/kids/state").json()["final"]
+    assert final["emergency_refused"] is False and final["emergency_authorized"] is False

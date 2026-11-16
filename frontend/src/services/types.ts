@@ -186,6 +186,11 @@ export interface KidsGame {
     placement: { current: number; levels: number[] };
     paires: { current: number; levels: number[] };
   };
+  /** Admin uniquement : niveau de la machine à cadeaux. */
+  machine_difficulty?: {
+    current: string;
+    levels: { id: string; label: string; orders_per_level: number[] }[];
+  };
   /** Admin uniquement : niveau de la tournée du traîneau et dernier vol. */
   difficulty?: {
     current: string;
@@ -200,8 +205,43 @@ export interface KidsView {
   completed_count: number;
   total: number;
   all_completed: boolean;
-  final: { title: string; message: string } | null;
+  final: {
+    title: string;
+    message: string;
+    /** Écran des lutins uniquement : protocole d'urgence autorisé par le maître du jeu. */
+    emergency_authorized?: boolean;
+    /** Écran des lutins uniquement : bouton d'urgence pressé trop tôt (message de patience affiché). */
+    emergency_refused?: boolean;
+  } | null;
+  /** Salle de jeux : jeux des missions rejouables, une fois la mission accomplie (sinon null). */
+  free_play?: FreePlayEntry[] | null;
 }
+
+export type FreeGameId = "constellation" | "machine" | "tournee";
+
+export interface FreePlayEntry {
+  id: FreeGameId;
+  title: string;
+  levels: { id: string; label: string }[];
+  default: string;
+}
+
+interface FreePlayBase {
+  title: string;
+  instructions: string;
+  level: string;
+  attempts_per_hint: number;
+}
+
+/** Partie libre : tout le contenu, réponses comprises (la tablette vérifie elle-même). */
+export type FreePlayData =
+  | (FreePlayBase & {
+      id: "machine";
+      intro: string;
+      orders: { text: string; choices: number[]; level: number; answer: number; hint: string }[];
+    })
+  | (FreePlayBase & { id: "constellation"; rounds: MemoryKind[]; layouts: (PlacementLayout | PairsLayout)[] })
+  | (FreePlayBase & { id: "tournee"; settings: TourneeSettings; hints: string[] });
 
 export interface KidsState extends KidsView {
   server_time: string;

@@ -38,6 +38,10 @@ class CodeAnswer(BaseModel):
     code: str = Field(pattern=r"^\d{1,8}$")
 
 
+# Jeux des missions rejouables dans la salle de jeux (le code du traîneau n'est pas un jeu : il n'y est pas).
+FREE_GAMES = ("constellation", "machine", "tournee")
+FREE_LEVEL_NAMES = [("facile", "Facile"), ("normal", "Normal"), ("difficile", "Difficile")]
+
 ANSWER_MODELS = {"constellation": ConstellationAnswer, "machine": MachineAnswer,
                  "tournee": TourneeAnswer, "code": CodeAnswer}
 
@@ -65,16 +69,49 @@ class KidsService:
         return {r.game_id: r for r in s.query(KidsProgress).all() if r.game_id in KIDS_GAMES}
 
     # ------------------------------------------------------ machine à cadeaux
-    def _new_draw(self, row: KidsProgress) -> None:
-        """Tire les commandes de la partie : au hasard dans chaque niveau, difficulté croissante."""
+    def _draw_orders(self, level: str, exclude: set[str] = frozenset()) -> list[str]:
+        """Commandes d'une partie au niveau donné : au hasard dans chaque niveau de question, difficulté croissante."""
         m = self.cfg.kids.machine
         ids: list[str] = []
-        for level, count in enumerate(m.orders_per_level, start=1):
-            pool = [q.id for q in m.questions if q.level == level]
+        for qlevel, count in enumerate(m.levels[level].orders_per_level, start=1):
+            pool = [q.id for q in m.questions if q.level == qlevel and q.id not in exclude]
+            if len(pool) < count:  # questions déjà posées réutilisées en dernier recours
+                pool += [q.id for q in m.questions if q.level == qlevel and q.id in exclude]
             ids += self.rng.sample(pool, count)
-        row.data = {"questions": ids, "misses": []}
+        return ids
+
+    def machine_difficulty(self, row: KidsProgress) -> str:
+        """Niveau choisi par le maître du jeu (conservé en base), sinon celui de `game.yaml`."""
+        m = self.cfg.kids.machine
+        chosen = (row.data or {}).get("difficulty")
+        return chosen if chosen in m.levels else m.difficulty
+
+    def _new_draw(self, row: KidsProgress) -> None:
+        """Tire les commandes de la partie (le niveau choisi par le maître du jeu est conservé)."""
+        data = {"questions": self._draw_orders(self.machine_difficulty(row)), "misses": []}
+        if (row.data or {}).get("difficulty"):
+            data["difficulty"] = row.data["difficulty"]
+        row.data = data
         if not row.completed:
             row.step = 0
+
+    def set_machine_difficulty(self, s: Session, level: str) -> dict:
+        m = self.cfg.kids.machine
+        if level not in m.levels:
+            raise GameError(f"niveau inconnu : {level}", 404)
+        row = s.get(KidsProgress, "machine")
+        if self.machine_difficulty(row) == level:
+            return {"changed": False}
+        data = {**(row.data or {}), "difficulty": level}
+        if not row.completed:  # les commandes pas encore réussies sont tirées à nouveau au nouveau niveau
+            kept = data["questions"][:row.step]
+            data["questions"] = kept + self._draw_orders(level, exclude=set(kept))[row.step:]
+            data["misses"] = []
+        row.data = data
+        row.updated_at = self.clock()
+        log_event(s, self.clock, "kids_difficulty", f"Maître du jeu : « {m.title} » en niveau {m.levels[level].label}",
+                  {"game": "machine", "level": level}, "admin")
+        return {"changed": True}
 
     def _draw_valid(self, row: KidsProgress) -> bool:
         """Faux si aucun tirage n'existe ou si `game.yaml` a changé depuis (questions supprimées, nombre)."""
@@ -264,6 +301,11 @@ class KidsService:
                     q = self._machine_order(row)
                     entry["current_order"] = {"number": row.step + 1, "total": c.total_orders,
                                               "text": q.text, "calc": q.calc, "answer": q.answer}
+                if gid == "machine":
+                    entry["machine_difficulty"] = {
+                        "current": self.machine_difficulty(row),
+                        "levels": [{"id": k, "label": v.label, "orders_per_level": v.orders_per_level}
+                                   for k, v in c.levels.items()]}
                 if gid == "constellation":
                     chosen = self.memory_difficulty(row)
                     entry["memory"] = {
@@ -282,7 +324,59 @@ class KidsService:
         return {"games": games, "completed_count": sum(r.completed for r in rows.values()),
                 "total": len(KIDS_GAMES), "all_completed": done,
                 "final": {"title": self.cfg.kids.final_title, "message": self.cfg.kids.final_message}
-                if done else None}
+                if done else None,
+                # Salle de jeux : une fois la mission accomplie, les lutins rejouent librement à leur niveau.
+                "free_play": [{"id": gid, "title": self._game_cfg(gid).title, "levels": self.free_levels(gid),
+                               "default": self._free_default(gid)} for gid in FREE_GAMES] if done else None}
+
+    # ------------------------------------------------------------- jeu libre
+    def _constellation_levels(self) -> list[dict]:
+        """Niveaux de la constellation pour le jeu libre : les niveaux de placement et de paires, rang par rang."""
+        c = self.cfg.kids.constellation
+        place = sorted(c.placement.levels, key=lambda lv: lv.count)
+        pairs = sorted(c.paires.levels, key=lambda lv: lv.cards)
+        n = max(len(place), len(pairs))
+        names = FREE_LEVEL_NAMES if n == len(FREE_LEVEL_NAMES) else [(f"niveau-{i + 1}", f"Niveau {i + 1}")
+                                                                    for i in range(n)]
+        return [{"id": names[i][0], "label": names[i][1], "placement": place[min(i, len(place) - 1)].count,
+                 "paires": pairs[min(i, len(pairs) - 1)].cards} for i in range(n)]
+
+    def free_levels(self, gid: str) -> list[dict]:
+        if gid == "constellation":
+            return [{"id": lv["id"], "label": lv["label"]} for lv in self._constellation_levels()]
+        return [{"id": k, "label": v.label} for k, v in self._game_cfg(gid).levels.items()]
+
+    def _free_default(self, gid: str) -> str:
+        if gid == "constellation":
+            c = self.cfg.kids.constellation
+            levels = self._constellation_levels()
+            return next((lv["id"] for lv in levels if lv["placement"] == c.placement.difficulty), levels[0]["id"])
+        return self._game_cfg(gid).difficulty
+
+    def free_play(self, s: Session, gid: str, level: str) -> dict:
+        """Partie libre (salle de jeux) : tout le contenu, réponses comprises, la tablette vérifie elle-même.
+        Réservée à la fin de la mission : avant, le niveau n'est choisi que par le maître du jeu."""
+        if gid not in FREE_GAMES:
+            raise GameError(f"jeu inconnu : {gid}", 404)
+        if not all(r.completed for r in self._rows(s).values()):
+            raise GameError("la salle de jeux ouvre quand toutes les missions sont réussies", 409)
+        if level not in {lv["id"] for lv in self.free_levels(gid)}:
+            raise GameError(f"niveau inconnu : {level}", 404)
+        c = self._game_cfg(gid)
+        base = {"id": gid, "title": c.title, "instructions": c.instructions, "level": level,
+                "attempts_per_hint": self.cfg.kids.attempts_per_hint}
+        if gid == "machine":
+            by_id = {q.id: q for q in c.questions}
+            orders = [by_id[i] for i in self._draw_orders(level)]
+            return base | {"intro": c.intro, "orders": [
+                {"text": q.text, "choices": sorted(q.choices), "level": q.level, "answer": q.answer, "hint": q.hint}
+                for q in orders]}
+        if gid == "constellation":
+            lv = next(x for x in self._constellation_levels() if x["id"] == level)
+            difficulty = {"placement": lv["placement"], "paires": lv["paires"]}
+            return base | {"rounds": list(c.rounds),
+                           "layouts": [self._memory_round_draw(kind, difficulty) for kind in c.rounds]}
+        return base | {"settings": c.settings(level), "hints": c.hints}
 
     # ----------------------------------------------------------- vérification
     def _check(self, gid: str, answer: BaseModel, row: KidsProgress) -> bool:

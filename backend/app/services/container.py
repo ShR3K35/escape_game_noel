@@ -92,8 +92,24 @@ class Services:
                 "kids_games": [{"id": g["id"], "title": g["title"], "status": g["status"]} for g in kids["games"]],
                 "emergency_authorized": bool(st.emergency_authorized)}
 
+    def emergency_refused(self, s: Session) -> bool:
+        """Vrai si le bouton d'urgence a été pressé sans autorisation depuis la dernière réinitialisation."""
+        def last(kind: str) -> int:
+            row = s.query(EventLog.id).filter(EventLog.type == kind).order_by(EventLog.id.desc()).first()
+            return row[0] if row else 0
+        refused = last("emergency_refused")
+        return refused > 0 and refused > last("game_reset")
+
     def kids_view(self, s: Session) -> dict:
-        return {"server_time": iso(self.clock()), "phase": self.game.state(s).phase, **self.kids.view(s)}
+        st = self.game.state(s)
+        view = self.kids.view(s)
+        if view["final"]:
+            # Écran final : statut du bouton d'urgence, et message de patience s'il a été pressé trop tôt.
+            authorized, refused = bool(st.emergency_authorized), self.emergency_refused(s)
+            view["final"] |= {"emergency_authorized": authorized, "emergency_refused": refused and not authorized}
+            if refused and not authorized:
+                view["final"]["message"] = self.cfg.kids.final_refused_message
+        return {"server_time": iso(self.clock()), "phase": st.phase, **view}
 
     def events(self, s: Session, limit: int = 50) -> list[dict]:
         rows = s.query(EventLog).order_by(EventLog.id.desc()).limit(limit).all()

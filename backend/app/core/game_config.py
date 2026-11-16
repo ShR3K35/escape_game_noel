@@ -216,29 +216,50 @@ class MachineQuestionCfg(BaseModel):
         return self
 
 
+class MachineLevelCfg(BaseModel):
+    """Un niveau de difficulté de « La machine à cadeaux » : commandes tirées dans chaque niveau de question."""
+
+    label: str = Field(min_length=1, max_length=30)
+    orders_per_level: list[int] = Field(min_length=3, max_length=3)  # commandes tirées par niveau 1, 2, 3
+
+    @property
+    def total(self) -> int:
+        return sum(self.orders_per_level)
+
+
 class MachineCfg(BaseModel):
     title: str
     instructions: str
     intro: str
-    orders_per_level: list[int] = Field(min_length=3, max_length=3)  # commandes tirées par niveau 1, 2, 3
+    difficulty: str  # niveau par défaut ; modifiable en direct dans l'onglet Lutins de l'admin
+    levels: dict[str, MachineLevelCfg] = Field(min_length=1, max_length=6)
     questions: list[MachineQuestionCfg]
     reward: RewardCfg
 
     @property
     def total_orders(self) -> int:
-        return sum(self.orders_per_level)
+        return self.levels[self.difficulty].total
 
     @model_validator(mode="after")
     def _enough_questions(self):
         ids = [q.id for q in self.questions]
         if len(set(ids)) != len(ids):
             raise ValueError("identifiants de questions dupliqués")
+        if self.difficulty not in self.levels:
+            raise ValueError(f"difficulté par défaut « {self.difficulty} » absente de levels")
+        for key, lv in self.levels.items():
+            if not re.match(r"^[a-z0-9_-]{1,20}$", key):
+                raise ValueError(f"identifiant de niveau invalide : {key}")
+            # Même nombre de commandes à tous les niveaux : l'intro et la progression en dépendent.
+            if lv.total != self.total_orders:
+                raise ValueError(f"niveau {key} : {lv.total} commandes au lieu de {self.total_orders}")
+            for level, wanted in enumerate(lv.orders_per_level, start=1):
+                available = sum(q.level == level for q in self.questions)
+                if wanted < 0 or available < wanted:
+                    raise ValueError(f"niveau {key}, questions de niveau {level} : {wanted} commandes demandées, "
+                                     f"{available} questions disponibles")
         if not 1 <= self.total_orders <= 20:
             raise ValueError("entre 1 et 20 commandes par partie")
-        for level, wanted in enumerate(self.orders_per_level, start=1):
-            available = sum(q.level == level for q in self.questions)
-            if available < wanted:
-                raise ValueError(f"niveau {level} : {wanted} commandes demandées, {available} questions disponibles")
         return self
 
 
@@ -297,6 +318,9 @@ class KidsCfg(BaseModel):
     attempts_per_hint: int = Field(2, ge=1, le=10)
     final_title: str = "Mission accomplie !"
     final_message: str
+    # Remplace le message final si les lutins ont appuyé sur le bouton d'urgence avant qu'il soit autorisé.
+    final_refused_message: str = ("Patience mes petits lutins. Laissez un peu de temps aux adultes de faire leurs "
+                                  "enquêtes avant de déclencher le protocole d'urgence.")
     constellation: ConstellationCfg
     machine: MachineCfg
     tournee: TourneeCfg

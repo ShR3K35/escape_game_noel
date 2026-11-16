@@ -42,16 +42,23 @@ Déposer les MP4 (H.264 + AAC) dans `media/videos/` avec les noms du manifeste `
 Une vidéo absente est remplacée par un écran de substitution (texte du Père Noël). Des vidéos de démonstration
 peuvent être générées avec `./scripts/generate-demo-videos.sh` (ffmpeg ou Docker ; vos fichiers ne sont jamais écrasés).
 
-## Jeux bonus de la tablette
+## Salle de jeux de la tablette
 
-Quand les 4 missions des lutins sont réussies, l'écran final de `/lutins` ouvre une « Salle de jeux » avec deux jeux
-repris du dépôt [noel2026](https://github.com/ShR3K35/noel2026) (branche `ccr-210a4fd7-emk6jo`, `web/src/game` et `web/src/kart`) :
+Pendant la mission, le niveau des jeux ne se règle que dans l'onglet « Lutins » de l'admin (constellation,
+machine à cadeaux, tournée du traîneau). Quand les 4 missions sont réussies, l'écran final de `/lutins` affiche :
 
-- **La Grande Tournée du Père Noël** (`frontend/src/arcade/plateformes/`) : plates-formes 2D sur Canvas, 3 niveaux, joystick tactile.
-- **Le Grand Prix du Père Noël** (`frontend/src/arcade/kart/`) : course de karts 3D (three.js, WebGL), 4 circuits.
+- le message final (`kids.final_message`), remplacé par `kids.final_refused_message` si les lutins appuient
+  sur le bouton d'urgence avant qu'il soit autorisé, et le statut du bouton d'urgence (autorisé / non autorisé) ;
+- la **Salle de jeux** : les lutins choisissent eux-mêmes un jeu et son niveau (Facile, Normal, Difficile).
+  - Les jeux des missions (sauf le code du traîneau) : parties libres servies par `GET /api/kids/free/{jeu}?level=…`
+    (refusé tant que la mission n'est pas finie), vérifiées sur la tablette (`frontend/src/games/freePlay.ts`),
+    sans effet sur la progression.
+  - Deux jeux repris du dépôt [noel2026](https://github.com/ShR3K35/noel2026) (branche `ccr-210a4fd7-emk6jo`) :
+    **La Grande Tournée du Père Noël** (`frontend/src/arcade/plateformes/`, plates-formes 2D ; le niveau règle
+    les cœurs et les vies) et **Le Grand Prix du Père Noël** (`frontend/src/arcade/kart/`, karts 3D three.js ;
+    le niveau règle la vitesse des concurrents). Plein écran, chargés seulement au premier lancement.
 
-Ils s'ouvrent en plein écran (la croix ou Échap ramène à l'écran final) et ne sont téléchargés qu'au premier lancement.
-Progression et meilleurs temps sont gardés dans le navigateur de la tablette. Tests : `tests/unit/arcade/`, `tests/e2e/arcade.spec.ts`.
+Tests : `backend/tests/test_kids.py`, `tests/unit/freePlay.test.ts`, `tests/unit/arcade/`, `tests/e2e/arcade.spec.ts`.
 
 ## Documentation
 

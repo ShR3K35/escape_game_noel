@@ -48,6 +48,35 @@ function DifficultyPicker({ difficulty }: { difficulty: Difficulty }) {
   );
 }
 
+type MachineDifficulty = NonNullable<KidsGame["machine_difficulty"]>;
+
+/** Niveau de « La machine à cadeaux » : les commandes pas encore réussies sont tirées à nouveau. */
+function MachinePicker({ difficulty }: { difficulty: MachineDifficulty }) {
+  return (
+    <div className="mt-2 rounded bg-black/30 p-2" data-testid="admin-machine-difficulty">
+      <p className="text-xs font-bold text-parchemin-200/90">Difficulté (appliquée aussitôt aux commandes non réussies) :</p>
+      <div className="mt-1 grid gap-2" style={{ gridTemplateColumns: `repeat(${difficulty.levels.length}, minmax(0, 1fr))` }}>
+        {difficulty.levels.map((l) => (
+          <ActionButton
+            key={l.id}
+            variant={l.id === difficulty.current ? "green" : undefined}
+            disabled={l.id === difficulty.current}
+            onAction={() => api.kidsMachineDifficulty(l.id)}
+            success={`Machine à cadeaux : niveau ${l.label}`}
+            className={l.id === difficulty.current ? "ring-2 ring-or-400 disabled:opacity-100" : ""}
+          >
+            {l.id === difficulty.current ? "✓ " : ""}
+            {l.label}
+            <span className="block text-[11px] font-normal opacity-80">
+              {l.orders_per_level.map((n, i) => `${n} niv. ${i + 1}`).join(" · ")}
+            </span>
+          </ActionButton>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 type Memory = NonNullable<KidsGame["memory"]>;
 
 /** Niveaux de « La constellation » : appliqués tout de suite aux manches pas encore réussies. */
@@ -92,7 +121,9 @@ export function KidsPanel({ state }: { state: AdminState }) {
     <>
       <Card title={`Mini-jeux des lutins · ${kids.completed_count} / ${kids.total}`}>
         <p className="mb-3 text-sm text-parchemin-200/75">
-          {kids.all_completed ? "🎉 Les lutins ont terminé : l'écran « Mission accomplie » est affiché." : "Progression en direct de la tablette."}
+          {kids.all_completed
+            ? "🎉 Les lutins ont terminé : l'écran « Mission accomplie » et la salle de jeux sont affichés (les lutins y choisissent eux-mêmes leur niveau)."
+            : "Progression en direct de la tablette. Les niveaux ne se règlent qu'ici jusqu'à la fin des missions."}
           {" "}Tablette connectée : {state.connections.kids ? "oui" : "non"}.
         </p>
         <ul className="space-y-3">
@@ -117,6 +148,7 @@ export function KidsPanel({ state }: { state: AdminState }) {
                   </span>
                 </p>
               )}
+              {g.machine_difficulty && <MachinePicker difficulty={g.machine_difficulty} />}
               {g.memory && <MemoryPicker memory={g.memory} done={g.status === "completed"} />}
               {g.difficulty && <DifficultyPicker difficulty={g.difficulty} />}
               <div className="mt-2 grid grid-cols-2 gap-2">
