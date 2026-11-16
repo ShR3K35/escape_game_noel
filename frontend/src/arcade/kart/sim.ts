@@ -13,6 +13,9 @@ const WALL_MARGIN = 11; // largeur de bas-côté avant le mur de neige
 export type ItemKind = "boost" | "snowball" | "ice";
 export type RacerId = "santa" | "grincheux" | "mere" | "renne" | "lutin";
 
+/** Vitesse des concurrents selon le niveau choisi par les lutins. */
+export const AI_SKILL = { facile: 0.88, normal: 1, difficile: 1.035 } as const;
+
 export interface Racer { id: RacerId; name: string; color: string; skill: number }
 
 export const RACERS: Racer[] = [
@@ -74,7 +77,11 @@ export class Race {
   private seed = 12345;
   private lastBeep = 4;
 
-  constructor(readonly track: Track, opts: { playerIsAi?: boolean } = {}) {
+  /** Vitesse des concurrents (niveau choisi dans la salle de jeux) : 1 = normal. */
+  readonly aiSkill: number;
+
+  constructor(readonly track: Track, opts: { playerIsAi?: boolean; aiSkill?: number } = {}) {
+    this.aiSkill = opts.aiSkill ?? 1;
     const S = track.samples, n = S.length;
     // grille de départ : le joueur part dernier, comme il se doit
     const order = [1, 2, 3, 4, 0];
@@ -168,7 +175,7 @@ export class Race {
     if (k.drifting) k.driftT += DT;
 
     // vitesse
-    let max = MAX_SPEED * k.racer.skill * this.rubber(k);
+    let max = MAX_SPEED * k.racer.skill * (k.isPlayer ? 1 : this.aiSkill) * this.rubber(k);
     if (k.boostT > 0) max *= 1.38;
     if (k.offroad && k.boostT <= 0) max *= 0.5;
     if (input.accel) k.speed += Math.max(0, max - k.speed) * ACCEL * DT + (k.speed < max ? 3.5 * DT : 0);

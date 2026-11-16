@@ -31,3 +31,13 @@ export const MAX_HEARTS = 3;
 
 export const PLAYER_W = 30;
 export const PLAYER_H = 56;
+
+/** Niveau de difficulté choisi par les lutins dans la salle de jeux. */
+export type ArcadeLevel = "facile" | "normal" | "difficile";
+export const DIFFICULTY: Record<ArcadeLevel, { maxHearts: number; lives: number }> = {
+  facile: { maxHearts: 5, lives: 5 },
+  normal: { maxHearts: MAX_HEARTS, lives: 3 },
+  difficile: { maxHearts: 2, lives: 1 },
+};
+/** Réglages de la partie en cours (cœurs par vie, vies au départ) : niveau « normal » par défaut. */
+export const tuning = { ...DIFFICULTY.normal };

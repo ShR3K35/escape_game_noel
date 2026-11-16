@@ -5,7 +5,7 @@ import * as THREE from "three";
 import { Controls, type TouchButton } from "../plateformes/input";
 import { KartSound } from "./audio";
 import { LOOKS, buildTrackScene, makeIceMesh, makeItemBoxMesh, makeKart, makeSnowballMesh, type KartModel, type TrackScene } from "./scene";
-import { DT, MAX_SPEED, Race, type ItemKind, type Kart, type KartInput, type RaceEvent } from "./sim";
+import { AI_SKILL, DT, MAX_SPEED, Race, type ItemKind, type Kart, type KartInput, type RaceEvent } from "./sim";
 import { buildTrack, TRACKS, type Track } from "./tracks";
 
 const FONT = "Fredoka, 'Baloo 2', 'Trebuchet MS', system-ui, sans-serif";
@@ -24,7 +24,8 @@ const ordinal = (n: number) => (n === 1 ? "1er" : `${n}e`);
 
 interface UiButton { x: number; y: number; w: number; h: number; action: () => void }
 
-export function startKart(host: HTMLElement, opts: { onExit: () => void }): { stop: () => void } {
+export function startKart(host: HTMLElement, opts: { onExit: () => void; difficulty?: keyof typeof AI_SKILL }): { stop: () => void } {
+  const aiSkill = AI_SKILL[opts.difficulty ?? "normal"];
   const glCanvas = document.createElement("canvas");
   const hud = document.createElement("canvas");
   for (const c of [glCanvas, hud]) { c.style.cssText = "position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;"; host.appendChild(c); }
@@ -51,7 +52,7 @@ export function startKart(host: HTMLElement, opts: { onExit: () => void }): { st
   let track: Track = buildTrack(TRACKS[0]);
   const builtTracks = new Map<number, Track>();
   let trackScene: TrackScene | null = null;
-  let race = new Race(track);
+  let race = new Race(track, { aiSkill });
   let karts: { kart: Kart; model: KartModel; flame: THREE.Mesh; wheelAngle: number }[] = [];
   let boxMeshes: THREE.Mesh[] = [];
   const shotMeshes = new Map<number, THREE.Mesh>();
@@ -161,7 +162,7 @@ export function startKart(host: HTMLElement, opts: { onExit: () => void }): { st
   }
 
   function newRace() {
-    race = new Race(track);
+    race = new Race(track, { aiSkill });
     raceGroup.clear();
     shotMeshes.clear(); iceMeshes.clear();
     karts = race.karts.map((kart) => {

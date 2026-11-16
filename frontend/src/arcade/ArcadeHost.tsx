@@ -5,11 +5,14 @@ import "@fontsource/fredoka/700.css";
 import { useEffect, useRef } from "react";
 
 import { startKart } from "./kart/kart";
+import type { ArcadeLevel } from "./plateformes/config";
 import { startGame } from "./plateformes/game";
 
 export type ArcadeGameId = "plateformes" | "kart";
+export type { ArcadeLevel };
 
-const START: Record<ArcadeGameId, (host: HTMLElement, opts: { onExit: () => void }) => { stop: () => void }> = {
+type Start = (host: HTMLElement, opts: { onExit: () => void; difficulty: ArcadeLevel }) => { stop: () => void };
+const START: Record<ArcadeGameId, Start> = {
   plateformes: startGame,
   kart: startKart,
 };
@@ -20,7 +23,7 @@ const LABELS: Record<ArcadeGameId, string> = {
 };
 
 /** Jeu bonus en plein écran par-dessus la page des lutins ; la croix du jeu ramène à l'écran final. */
-export default function ArcadeHost({ game, onExit }: { game: ArcadeGameId; onExit: () => void }) {
+export default function ArcadeHost({ game, level, onExit }: { game: ArcadeGameId; level: ArcadeLevel; onExit: () => void }) {
   const host = useRef<HTMLDivElement>(null);
   const exit = useRef(onExit);
   exit.current = onExit;
@@ -28,7 +31,7 @@ export default function ArcadeHost({ game, onExit }: { game: ArcadeGameId; onExi
   useEffect(() => {
     const el = host.current;
     if (!el) return;
-    const handle = START[game](el, { onExit: () => exit.current() });
+    const handle = START[game](el, { onExit: () => exit.current(), difficulty: level });
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
@@ -36,7 +39,7 @@ export default function ArcadeHost({ game, onExit }: { game: ArcadeGameId; onExi
       document.body.style.overflow = prevOverflow;
       if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
     };
-  }, [game]);
+  }, [game, level]);
 
   return (
     <div
@@ -46,6 +49,7 @@ export default function ArcadeHost({ game, onExit }: { game: ArcadeGameId; onExi
       role="application"
       aria-label={LABELS[game]}
       data-testid={`arcade-${game}`}
+      data-level={level}
     />
   );
 }

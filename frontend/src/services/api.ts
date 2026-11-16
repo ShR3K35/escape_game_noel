@@ -1,4 +1,4 @@
-import type { AttemptResult, GameEvent, KidsGameId, Phase, TeamStatus } from "./types";
+import type { AttemptResult, FreeGameId, FreePlayData, GameEvent, KidsGameId, Phase, TeamStatus } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -71,9 +71,12 @@ export const api = {
   kidsComplete: (gameId: KidsGameId) => post(`/api/admin/kids/${gameId}/complete`),
   kidsReset: (gameId: KidsGameId) => post(`/api/admin/kids/${gameId}/reset`),
   kidsDifficulty: (level: string) => post("/api/admin/kids/tournee/difficulty", { level }),
+  kidsMachineDifficulty: (level: string) => post("/api/admin/kids/machine/difficulty", { level }),
   kidsMemoryDifficulty: (kind: "placement" | "paires", level: number) =>
     post("/api/admin/kids/constellation/difficulty", { kind, level }),
   kidsResetAll: () => post("/api/admin/kids/reset", { confirm: true }),
+  freePlay: (gameId: FreeGameId, level: string) =>
+    request<FreePlayData>("GET", `/api/kids/free/${gameId}?level=${encodeURIComponent(level)}`),
   attempt: (gameId: KidsGameId, answer: unknown) =>
     request<AttemptResult>("POST", `/api/kids/games/${gameId}/attempt`, { answer }),
 

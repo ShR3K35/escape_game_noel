@@ -3,7 +3,7 @@
 
 import {
   AIR_ACCEL, APEX_HANG, APEX_THRESHOLD, BUFFER_TICKS, CORNER_CORRECTION, COYOTE_TICKS, DT, FALL_GRAVITY,
-  GROUND_ACCEL, GROUND_DECEL, HURT_INVULN_TICKS, JUMP_CUT, JUMP_VELOCITY, MAX_FALL, MAX_HEARTS, PLAYER_H,
+  GROUND_ACCEL, GROUND_DECEL, HURT_INVULN_TICKS, JUMP_CUT, JUMP_VELOCITY, MAX_FALL, PLAYER_H, tuning,
   PLAYER_W, RISE_GRAVITY, ROWS, RUN_SPEED, STOMP_BOUNCE, STOMP_BOUNCE_HELD, TILE,
 } from "./config";
 import type { EnemyKind, LevelDef } from "./levels";
@@ -70,7 +70,7 @@ export class World {
     this.player = {
       x: start.x * TILE + (TILE - PLAYER_W) / 2, y: (start.y + 1) * TILE - PLAYER_H,
       w: PLAYER_W, h: PLAYER_H, vx: 0, vy: 0, onGround: false, facing: 1,
-      hearts: MAX_HEARTS, invuln: 0, power: carried?.power ?? false,
+      hearts: tuning.maxHearts, invuln: 0, power: carried?.power ?? false,
       lastGround: NEVER, lastPress: NEVER, jumping: false, landSquash: 0, runPhase: 0,
       throwCooldown: 0, throwAnim: 0, dead: false,
     };
@@ -435,7 +435,7 @@ export class World {
       if (this.status === "play" && overlap(p, it, 0)) {
         it.alive = false;
         if (it.kind === "star") { p.power = true; this.emit("power", it.x + it.w / 2, it.y); }
-        else { p.hearts = Math.min(MAX_HEARTS, p.hearts + 1); this.emit("heart", it.x + it.w / 2, it.y); }
+        else { p.hearts = Math.min(tuning.maxHearts, p.hearts + 1); this.emit("heart", it.x + it.w / 2, it.y); }
       }
     }
     if (this.tick % 120 === 0) this.items = this.items.filter((i) => i.alive);

@@ -32,7 +32,9 @@ def test_sleigh_code_matches_rewards():
     lambda d: d["teams"].append(dict(d["teams"][0])),
     lambda d: d["kids"]["machine"]["questions"][0].update(answer=21),
     lambda d: d["kids"]["machine"]["questions"][0].update(calc="40 / 2"),
-    lambda d: d["kids"]["machine"].update(orders_per_level=[20, 3, 2]),
+    lambda d: d["kids"]["machine"]["levels"]["normal"].update(orders_per_level=[20, 3, 2]),  # trop de questions
+    lambda d: d["kids"]["machine"]["levels"]["facile"].update(orders_per_level=[4, 3, 0]),  # 7 commandes au lieu de 8
+    lambda d: d["kids"]["machine"].update(difficulty="extreme"),
     lambda d: d["kids"]["constellation"]["placement"].update(difficulty=7),  # niveau absent
     lambda d: d["kids"]["constellation"]["placement"]["levels"][0].update(count=15),  # grille 7×4 trop petite
     lambda d: d["kids"]["constellation"]["paires"]["levels"][0].update(cards=60),  # pas assez de symboles

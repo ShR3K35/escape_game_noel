@@ -6,7 +6,7 @@ import {
   drawGiftBlock, drawItem, drawLantern, drawSanta, drawSleigh, drawSnowball, drawTerrain, glow, hash, heart, skyGradient,
 } from "./art";
 import { Sound } from "./audio";
-import { DT, MAX_HEARTS, ROWS, TILE } from "./config";
+import { DIFFICULTY, DT, ROWS, TILE, tuning, type ArcadeLevel } from "./config";
 import { Controls, type TouchButton } from "./input";
 import { LEVELS, type Decor, type Theme } from "./levels";
 import { World, type GameEvent } from "./world";
@@ -40,7 +40,8 @@ function store(s: Saved) {
 
 export interface GameHandle { stop: () => void }
 
-export function startGame(host: HTMLElement, opts: { onExit: () => void }): GameHandle {
+export function startGame(host: HTMLElement, opts: { onExit: () => void; difficulty?: ArcadeLevel }): GameHandle {
+  Object.assign(tuning, DIFFICULTY[opts.difficulty ?? "normal"]);
   const canvas = document.createElement("canvas");
   canvas.setAttribute("aria-label", "Jeu : La grande tournée du Père Noël");
   canvas.style.cssText = "position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;";
@@ -56,7 +57,7 @@ export function startGame(host: HTMLElement, opts: { onExit: () => void }): Game
   let screen: Screen = "title";
   let levelIndex = 0;
   let world = new World(LEVELS[0]);
-  let lives = 3;
+  let lives = tuning.lives;
   let totalBells = 0;
   let bellsAtLevelStart = 0;
   let camX = 0, camY = 0;
@@ -138,7 +139,7 @@ export function startGame(host: HTMLElement, opts: { onExit: () => void }): Game
   }
 
   function newGame(from: number) {
-    lives = 3;
+    lives = tuning.lives;
     totalBells = 0;
     startLevel(from, true);
   }
@@ -750,7 +751,7 @@ export function startGame(host: HTMLElement, opts: { onExit: () => void }): Game
     ctx.save(); ctx.translate(36, 12 + h / 2); ctx.scale(s, s); drawBell(ctx, 0, 0, time * 0.5); ctx.restore();
     text(`${totalBells}`, 56, 12 + h / 2 + 1, small ? 20 : 24, "#ffe9a0", "left", 700);
     let hx = small ? 104 : 124;
-    for (let i = 0; i < MAX_HEARTS; i++) {
+    for (let i = 0; i < tuning.maxHearts; i++) {
       const full = i < world.player.hearts;
       const g = ctx.createLinearGradient(0, 12, 0, 12 + h);
       g.addColorStop(0, full ? "#ff8a9a" : "rgba(255,255,255,0.18)"); g.addColorStop(1, full ? "#e0203f" : "rgba(255,255,255,0.12)");
@@ -904,7 +905,7 @@ export function startGame(host: HTMLElement, opts: { onExit: () => void }): Game
     dim();
     titleText("Oh non !", "Les lutins t'attendent pour réessayer", cssH * 0.25);
     menu([
-      { label: "Réessayer le niveau", action: () => { lives = 3; totalBells = bellsAtLevelStart; startLevel(levelIndex, false); }, primary: true },
+      { label: "Réessayer le niveau", action: () => { lives = tuning.lives; totalBells = bellsAtLevelStart; startLevel(levelIndex, false); }, primary: true },
       { label: "Menu du jeu", action: goTitle },
     ], cssH * 0.25 + Math.min(120, cssH * 0.24));
     topRightButtons(false);

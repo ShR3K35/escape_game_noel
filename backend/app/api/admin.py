@@ -183,6 +183,11 @@ async def kids_difficulty(body: DifficultyBody, request: Request, svc=Depends(se
     return await command(request, lambda s: svc.kids.set_difficulty(s, body.level))
 
 
+@router.post("/kids/machine/difficulty")
+async def kids_machine_difficulty(body: DifficultyBody, request: Request, svc=Depends(services)):
+    return await command(request, lambda s: svc.kids.set_machine_difficulty(s, body.level))
+
+
 @router.post("/kids/constellation/difficulty")
 async def kids_memory_difficulty(body: MemoryDifficultyBody, request: Request, svc=Depends(services)):
     return await command(request, lambda s: svc.kids.set_memory_difficulty(s, body.kind, body.level))

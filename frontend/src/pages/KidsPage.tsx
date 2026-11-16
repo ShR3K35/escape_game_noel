@@ -1,18 +1,21 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 
-import type { ArcadeGameId } from "../arcade/ArcadeHost";
-
+import type { ArcadeGameId, ArcadeLevel } from "../arcade/ArcadeHost";
 import { Confetti, Snowfall } from "../components/Ambient";
 import { CodeGame } from "../games/CodeGame";
 import { ConstellationGame } from "../games/ConstellationGame";
+import { FreePlayGame } from "../games/FreePlayGame";
 import { MachineGame } from "../games/MachineGame";
 import { TourneeGame } from "../games/TourneeGame";
 import { setSoundEnabled, sfx, soundEnabled } from "../games/sounds";
 import { useLiveChannel } from "../hooks/useLiveChannel";
 import { api } from "../services/api";
 import type {
+  AttemptResult,
   CodeContent,
   ConstellationContent,
+  FreeGameId,
+  FreePlayData,
   KidsGame,
   KidsGameId,
   KidsState,
@@ -24,10 +27,35 @@ import type {
 // Jeux bonus débloqués quand toutes les missions sont réussies : chargés seulement à l'ouverture (three.js est lourd).
 const ArcadeHost = lazy(() => import("../arcade/ArcadeHost"));
 
-const ARCADE: { id: ArcadeGameId; icon: string; title: string; subtitle: string }[] = [
-  { id: "plateformes", icon: "🎅", title: "La Grande Tournée", subtitle: "Saute, cours et récolte les clochettes !" },
-  { id: "kart", icon: "🏎️", title: "Le Grand Prix", subtitle: "Course de karts sur 4 circuits enneigés" },
+const ARCADE_LEVELS: { id: ArcadeLevel; label: string }[] = [
+  { id: "facile", label: "Facile" },
+  { id: "normal", label: "Normal" },
+  { id: "difficile", label: "Difficile" },
 ];
+const ARCADE: { id: ArcadeGameId; icon: string; title: string; subtitle: string }[] = [
+  { id: "plateformes", icon: "⛄", title: "La Grande Tournée", subtitle: "Saute et récolte les clochettes" },
+  { id: "kart", icon: "🏎️", title: "Le Grand Prix", subtitle: "Course de karts enneigée" },
+];
+const FREE_SUBTITLES: Record<FreeGameId, string> = {
+  constellation: "Mémoire des étoiles",
+  machine: "Calculs de Noël",
+  tournee: "Vol du traîneau",
+};
+/** Couleur des boutons de niveau, du plus facile au plus difficile. */
+const LEVEL_TONES = [
+  "border-sapin-800 bg-sapin-600 text-white",
+  "border-or-600 bg-or-400 text-bois-950",
+  "border-bordeaux-900 bg-bordeaux-600 text-white",
+];
+
+interface RoomGame {
+  key: string;
+  icon: string;
+  title: string;
+  subtitle: string;
+  levels: { id: string; label: string }[];
+  play: (level: string) => void;
+}
 
 const ICONS: Record<KidsGameId, string> = { constellation: "✨", machine: "⚙️", tournee: "🎅", code: "🛷" };
 
@@ -131,45 +159,73 @@ function Celebration({ title, reward, chest, onClose }: {
   );
 }
 
-function FinalScreen({ title, message, games, onPlay }: {
+/** Une carte de la salle de jeux : on touche directement le niveau pour lancer la partie. */
+function RoomCard({ game }: { game: RoomGame }) {
+  return (
+    <div className="flex flex-col rounded-[1.5rem] border-4 border-or-400 bg-bordeaux-700 p-3 text-white shadow-xl" data-room={game.key}>
+      <div className="flex items-center gap-3 text-left">
+        <span className="text-4xl" style={{ animation: "float 3s ease-in-out infinite" }}>
+          {game.icon}
+        </span>
+        <span>
+          <span className="block text-xl font-black leading-tight">{game.title}</span>
+          <span className="block text-sm font-bold text-white/80">{game.subtitle}</span>
+        </span>
+      </div>
+      <div className="mt-auto grid gap-2 pt-2" style={{ gridTemplateColumns: `repeat(${game.levels.length}, minmax(0, 1fr))` }}>
+        {game.levels.map((l, i) => (
+          <button
+            key={l.id}
+            type="button"
+            data-level={l.id}
+            aria-label={`${game.title} : niveau ${l.label}`}
+            onClick={() => {
+              sfx.bell();
+              game.play(l.id);
+            }}
+            className={`min-h-12 rounded-xl border-b-4 px-1 text-base font-black shadow active:translate-y-0.5 active:border-b-2 ${
+              LEVEL_TONES[Math.round((i * (LEVEL_TONES.length - 1)) / Math.max(1, game.levels.length - 1))]
+            }`}
+          >
+            {l.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Mission accomplie : le message final, puis la salle de jeux (tous les jeux, niveau au choix des lutins). */
+function FinalScreen({ title, message, emergency, room }: {
   title: string;
   message: string;
-  games: KidsGame[];
-  onPlay: (id: ArcadeGameId) => void;
+  emergency: boolean;
+  room: RoomGame[];
 }) {
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto overflow-x-hidden text-center" data-testid="kids-final">
-      <Confetti count={60} />
-      <div className="pointer-events-none absolute left-0 top-10 text-7xl" style={{ animation: "sleigh 7s linear infinite" }}>
+    <div className="relative flex min-h-0 flex-1 flex-col items-center overflow-y-auto overflow-x-hidden text-center" data-testid="kids-final">
+      <Confetti count={40} />
+      <div className="pointer-events-none absolute left-0 top-2 text-6xl" style={{ animation: "sleigh 7s linear infinite" }}>
         🛷🦌🦌
       </div>
-      <p className="text-8xl short:text-5xl">🏆</p>
-      <h2 className="mt-4 text-5xl font-black text-or-300 drop-shadow short:mt-1 short:text-4xl">{title}</h2>
-      <p className="parchment mt-6 max-w-2xl rounded-3xl p-6 text-2xl font-bold leading-snug shadow-xl short:mt-3 short:p-4 short:text-xl">{message}</p>
-      <div className="mt-6">
-        <RewardBar games={games} />
-      </div>
-      <div className="relative z-10 mt-8 w-full max-w-3xl short:mt-4" data-testid="arcade-menu">
-        <h3 className="text-3xl font-black text-or-300 drop-shadow">🎮 Salle de jeux des lutins</h3>
-        <div className="mt-3 grid gap-4 sm:grid-cols-2">
-          {ARCADE.map((a) => (
-            <button
-              key={a.id}
-              type="button"
-              data-arcade={a.id}
-              onClick={() => {
-                sfx.bell();
-                onPlay(a.id);
-              }}
-              className="glow-pulse flex flex-col items-center rounded-[2rem] border-4 border-or-400 bg-bordeaux-700 p-4 text-white shadow-xl"
-            >
-              <span className="text-5xl" style={{ animation: "float 3s ease-in-out infinite" }}>
-                {a.icon}
-              </span>
-              <span className="mt-1 text-2xl font-black">{a.title}</span>
-              <span className="text-lg font-bold text-white/85">{a.subtitle}</span>
-              <span className="mt-1 text-lg font-black text-or-300">▶ Jouer</span>
-            </button>
+      <h2 className="relative mt-2 text-4xl font-black text-or-300 drop-shadow short:mt-0 short:text-3xl">🏆 {title}</h2>
+      <p className="parchment relative mt-2 max-w-3xl rounded-2xl px-5 py-2 text-lg font-bold leading-snug shadow-xl short:text-base" data-testid="final-message">
+        {message}
+      </p>
+      <p
+        className={`relative mt-2 rounded-full border-2 px-4 py-1 text-lg font-black shadow ${
+          emergency ? "border-sapin-300 bg-sapin-600 text-white" : "border-bordeaux-300 bg-bordeaux-800 text-white"
+        }`}
+        data-testid="emergency-status"
+        data-authorized={emergency}
+      >
+        🚨 {emergency ? "✅ Protocole d'urgence autorisé" : "⛔ Protocole d'urgence non autorisé"}
+      </p>
+      <div className="relative z-10 mt-3 w-full max-w-5xl pb-2" data-testid="arcade-menu">
+        <h3 className="text-2xl font-black text-or-300 drop-shadow">🎮 Salle de jeux des lutins : choisissez un jeu et un niveau !</h3>
+        <div className="mt-2 grid gap-3 sm:grid-cols-3">
+          {room.map((g) => (
+            <RoomCard key={g.key} game={g} />
           ))}
         </div>
       </div>
@@ -180,11 +236,72 @@ function FinalScreen({ title, message, games, onPlay }: {
 export default function KidsPage() {
   const { data, connected } = useLiveChannel<KidsState>("kids");
   const [openId, setOpenId] = useState<KidsGameId | null>(null);
-  const [celebrate, setCelebrate] = useState<{ id: KidsGameId; title: string; reward: Reward | null; at: number } | null>(null);
+  const [celebrate, setCelebrate] = useState<{ id: KidsGameId; title: string; reward: Reward | null; at: number; free?: boolean } | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [sound, setSound] = useState(soundEnabled);
   const [error, setError] = useState<string | null>(null);
-  const [arcade, setArcade] = useState<ArcadeGameId | null>(null);
+  const [arcade, setArcade] = useState<{ id: ArcadeGameId; level: ArcadeLevel } | null>(null);
+  // Salle de jeux : un jeu des missions rejoué au niveau choisi par les lutins (vérifié sur la tablette).
+  const [free, setFree] = useState<{ id: FreeGameId; level: string; label: string } | null>(null);
+  const [freeData, setFreeData] = useState<FreePlayData | null>(null);
+
+  useEffect(() => {
+    if (!free) {
+      setFreeData(null);
+      return;
+    }
+    let alive = true;
+    setError(null);
+    api.freePlay(free.id, free.level).then(
+      (d) => alive && setFreeData(d),
+      () => {
+        if (!alive) return;
+        setError("Oups ! La tablette n'arrive pas à joindre le Père Noël. Réessayez dans un instant.");
+        setFree(null);
+      },
+    );
+    return () => {
+      alive = false;
+    };
+  }, [free]);
+
+  // La salle de jeux se referme si le maître du jeu relance la mission.
+  const roomOpen = !!data?.all_completed;
+  useEffect(() => {
+    if (!roomOpen) {
+      setFree(null);
+      setArcade(null);
+    }
+  }, [roomOpen]);
+
+  const onFreeResult = (r: AttemptResult) => {
+    if (!free) return;
+    if (r.correct && r.completed) {
+      const delay = free.id === "machine" ? 1600 : 0;
+      if (delay) setTimeout(() => sfx.fanfare(), delay);
+      else sfx.fanfare();
+      setCelebrate({ id: free.id, title: `${freeData?.title ?? ""} · niveau ${free.label}`, reward: null, at: Date.now() + delay, free: true });
+    } else if (free.id === "constellation") (r.correct ? sfx.success : sfx.wrong)();
+  };
+
+  const room: RoomGame[] = [
+    ...(data?.free_play ?? []).map((g) => ({
+      key: g.id,
+      icon: ICONS[g.id],
+      title: g.title,
+      subtitle: FREE_SUBTITLES[g.id],
+      levels: g.levels,
+      play: (level: string) => setFree({ id: g.id, level, label: g.levels.find((l) => l.id === level)?.label ?? level }),
+    })),
+    ...ARCADE.map((a) => ({
+      key: a.id,
+      icon: a.icon,
+      title: a.title,
+      subtitle: a.subtitle,
+      levels: ARCADE_LEVELS,
+      play: (level: string) => setArcade({ id: a.id, level: level as ArcadeLevel }),
+    })),
+  ];
 
   const open = data?.games.find((g) => g.id === openId) ?? null;
 
@@ -256,10 +373,13 @@ export default function KidsPage() {
     // et centre son contenu. Seul le corps d'un jeu défile, en dernier recours.
     <div className="relative flex h-dvh select-none flex-col overflow-hidden bg-[linear-gradient(180deg,var(--color-sapin-800),var(--color-sapin-950))] font-sans">
       {/* Les flocons de la page ne tombent que sur la carte : en jeu, ils coûteraient des images au jeu lui-même. */}
-      {!open && !arcade && <Snowfall count={35} />}
+      {!open && !free && !arcade && <Snowfall count={35} />}
       <header className="relative z-10 flex shrink-0 flex-wrap items-center justify-between gap-3 px-4 py-3 short:py-1">
         <button
-          onClick={() => setOpenId(null)}
+          onClick={() => {
+            setOpenId(null);
+            setFree(null);
+          }}
           className="flex items-center gap-2 text-left"
           aria-label="Retour à la carte des missions"
         >
@@ -311,8 +431,32 @@ export default function KidsPage() {
           </div>
         )}
 
-        {data && !open && data.all_completed && data.final && (
-          <FinalScreen title={data.final.title} message={data.final.message} games={data.games} onPlay={setArcade} />
+        {data && !open && free && (
+          <div className="parchment mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col rounded-[2rem] p-4 shadow-2xl sm:p-6 short:p-3" data-testid={`free-${free.id}`}>
+            <div className="mb-3 flex shrink-0 items-center gap-3 short:mb-1">
+              <button onClick={() => setFree(null)} className="rounded-2xl bg-bois-700 px-4 py-3 text-lg font-black text-white short:py-2">
+                ← Salle de jeux
+              </button>
+              <h1 className="flex-1 text-3xl font-black text-bordeaux-800 short:text-2xl">
+                {ICONS[free.id]} {freeData?.title ?? "…"}{" "}
+                <span className="whitespace-nowrap rounded-full bg-or-300 px-3 py-0.5 align-middle text-lg text-bois-950" data-testid="free-level">
+                  {free.label}
+                </span>
+              </h1>
+              <div id="game-toolbar" className="flex items-center gap-2" />
+            </div>
+            <div className="flex min-h-0 flex-1 flex-col justify-center overflow-y-auto [container-type:size]" data-testid="game-body">
+              {freeData ? (
+                <FreePlayGame key={`${free.id}-${free.level}`} data={freeData} onResult={onFreeResult} />
+              ) : (
+                <p className="text-center text-2xl font-bold text-encre/70">Le Père Noël prépare la partie…</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {data && !open && !free && data.all_completed && data.final && (
+          <FinalScreen title={data.final.title} message={data.final.message} emergency={!!data.final.emergency_authorized} room={room} />
         )}
 
         {data && !open && !data.all_completed && (
@@ -352,7 +496,7 @@ export default function KidsPage() {
 
       {arcade && data?.all_completed && (
         <Suspense fallback={<div className="fixed inset-0 z-50 bg-[#0b0d2a]" />}>
-          <ArcadeHost game={arcade} onExit={() => setArcade(null)} />
+          <ArcadeHost game={arcade.id} level={arcade.level} onExit={() => setArcade(null)} />
         </Suspense>
       )}
 
@@ -362,6 +506,7 @@ export default function KidsPage() {
           reward={celebrate.reward}
           chest={celebrate.id === "machine"}
           onClose={() => {
+            if (celebrate.free) setFree(null); // retour à la salle de jeux
             setCelebrate(null);
             setOpenId(null);
           }}
